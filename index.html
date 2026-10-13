@@ -1770,18 +1770,24 @@ async function saveAndShowLeaderboard(){
   );
 
   // ابتدا رکورد جدید را ذخیره می‌کنیم
-  const {data:savedRecord,error:insertError}=await supabaseClient
-   .from("alavi_robot_records")
-   .insert({
-    student_name:studentFullName,
-    elapsed_ms:finalElapsedMs,
-    score:score,
-    photo_data:studentPhotoData
-   })
-   .select("id,student_name,elapsed_ms,score,created_at,photo_data")
-   .single();
+  const {data:savedRecord,error:insertError} = await supabaseClient
+  .from("alavi_robot_records")
+  .upsert(
+    {
+      student_name: studentFullName,
+      elapsed_ms: finalElapsedMs,
+      score: score,
+      photo_data: studentPhotoData,
+      created_at: new Date().toISOString()
+    },
+    {
+      onConflict: "student_name"
+    }
+  )
+  .select("id, student_name, elapsed_ms, score, created_at, photo_data")
+  .single();
 
-  if(insertError)throw insertError;
+if(insertError) throw insertError;
 
   // حذف رکوردهای قبلی همین دانش‌آموز
   const oldIds=previousRecords
