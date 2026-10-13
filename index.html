@@ -1787,7 +1787,7 @@ async function saveAndShowLeaderboard(){
   .select("id, student_name, elapsed_ms, score, created_at, photo_data")
   .single();
 
-if(insertError) throw insertError;
+if(insertError) throw insertError; 
 
   // حذف رکوردهای قبلی همین دانش‌آموز
   const oldIds=previousRecords
