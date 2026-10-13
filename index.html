@@ -821,7 +821,14 @@ const $ = id => document.getElementById(id);
 const SUPABASE_URL = "https://ghnpiijihybuhfetnxjp.supabase.co";
 const SUPABASE_KEY = "sb_publishable_SEGca8-w1pAO3_TQgMd-qA_vOvkj6jq";
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-
+supabaseClient
+  .from("alavi_robot_records")
+  .select("id")
+  .limit(1)
+  .then(({ data, error }) => {
+    console.log("Supabase test data:", data);
+    console.log("Supabase test error:", error);
+  });
 const devices = [
  {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board","کیبورد","صفحه کلید"],image:"keyboard.jpg"},
  {name:"Mouse",type:"Input",faType:"ورودی",aliases:["mouse","ماوس","موس"],image:"mouse.jpg"},
