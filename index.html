@@ -664,6 +664,51 @@ video {
 #leaderboardTable tr.current-record{background:#14513c;color:#fff;font-weight:900}
 .victory-card{max-height:90%;overflow-y:auto}
 
+#mainLeaderboard {
+  overflow: hidden;
+  color: #f5f8ff;
+}
+
+#mainLeaderboard h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  color: #ffdf70;
+}
+
+#mainLeaderboardStatus {
+  color: #b8eaff;
+  font-size: 12px;
+}
+
+#mainLeaderboardTable {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+#mainLeaderboardTable th,
+#mainLeaderboardTable td {
+  padding: 9px 6px;
+  border-bottom: 1px solid #365076;
+  text-align: center;
+}
+
+#mainLeaderboardTable th {
+  background: #203a5c;
+  color: #d9f7ff;
+}
+
+#mainLeaderboardTable tr.current-record {
+  background: #14513c;
+}
+
+@media (max-width: 600px) {
+  #mainLeaderboard {
+    padding: 10px !important;
+  }
+}
+
 </style>
 </head>
 
@@ -803,969 +848,751 @@ video {
 
   <h2 style="margin-top:22px">🖼️ مراحل بازی</h2>
   <div id="deviceList"></div>
+
 </aside>
 </div>
+
+<section class="panel leaderboard-wrap" id="mainLeaderboard" style="padding:16px;margin-top:18px">
+  <h2>🏆 جدول رکوردهای دانش‌آموزان</h2>
+  <p id="mainLeaderboardStatus">در حال دریافت رکوردها...</p>
+  <div style="overflow-x:auto">
+    <table id="mainLeaderboardTable">
+      <thead>
+        <tr>
+          <th>رتبه</th>
+          <th>عکس</th>
+          <th>نام دانش‌آموز</th>
+          <th>تاریخ و ساعت</th>
+          <th>زمان بازی</th>
+          <th>امتیاز</th>
+        </tr>
+      </thead>
+      <tbody id="mainLeaderboardBody">
+        <tr><td colspan="6">در حال دریافت رکوردها...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
 </div>
 
 <canvas id="fireworks"></canvas>
 
+
 <script type="module">
- import { createClient } from
-    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"; 
-import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-
-const $ = id => document.getElementById(id);
-
-/* تنظیم اتصال Supabase: مقادیر را با اطلاعات پروژه خود جایگزین کن */
-const SUPABASE_URL = "https://xbnrbceiuzyqigbxfysd.supabase.co";
-const SUPABASE_KEY = "sb_publishable_SrY5R1nmrTo7g1aTMU8iNA_5kP_BHLc";
-const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
-supabaseClient
-  .from("alavi_robot_records")
-  .select("id")
-  .limit(1)
-  .then(({ data, error }) => {
-    console.log("Supabase test data:", data);
-    console.log("Supabase test error:", error);
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  import * as THREE from "three";
+  import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+  
+  const $ = id => document.getElementById(id);
+  
+  const SUPABASE_URL = "https://xbnrbceiuzyqigbxfysd.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_SrY5R1nmrTo7g1aTMU8iNA_5kP_BHLc";
+  const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  
+  supabaseClient.from("alavi_robot_records").select("id").limit(1).then(({data,error})=>{
+   console.log("Supabase test data:",data);
+   console.log("Supabase test error:",error);
   });
-const devices = [
- {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board","کیبورد","صفحه کلید"],image:"keyboard.jpg"},
- {name:"Mouse",type:"Input",faType:"ورودی",aliases:["mouse","ماوس","موس"],image:"mouse.jpg"},
- {name:"Microphone",type:"Input",faType:"ورودی",aliases:["microphone","mic","میکروفون","میکروفن"],image:"microphone.jpg"},
- {name:"Monitor",type:"Output",faType:"خروجی",aliases:["monitor","screen","مانیتور","صفحه نمایش"],image:"monitor.jpg"},
- {name:"Speaker",type:"Output",faType:"خروجی",aliases:["speaker","speakers","اسپیکر","بلندگو"],image:"speaker.jpg"},
- {name:"Printer",type:"Output",faType:"خروجی",aliases:["printer","پرینتر","چاپگر"],image:"printer.jpg"},
- {name:"Webcam",type:"Input",faType:"ورودی",aliases:["webcam","web cam","وبکم","دوربین وب"],image:"webcam.jpg"},
- {name:"Headphones",type:"Output",faType:"خروجی",aliases:["headphones","headphone","headset","هدفون","هدست"],image:"headphones.jpg"},
- {name:"Scanner",type:"Input",faType:"ورودی",aliases:["scanner","اسکنر"],image:"scanner.jpg"},
- {name:"Gamepad",type:"Input",faType:"ورودی",aliases:["gamepad","game pad","controller","گیم پد","دسته بازی"],image:"gamepad.jpg"},
- {name:"Digital Camera",type:"Input",faType:"ورودی",aliases:["digital camera","camera","دوربین دیجیتال","دوربین"],image:"camera.jpg"},
- {name:"Projector",type:"Output",faType:"خروجی",aliases:["projector","پروژکتور"],image:"projector.jpg"}
-];
-
-let currentIndex = 0;
-let score = 0;
-let started = false;
-let waitingAnswer = false;
-let autoMoving = false;
-let autoMoveToFinish = false;
-let answerDeadline = 0;
-let answerTimer = null;
-let celebrationTimer = null;
-let locked = false;
-let finishing = false;
-let gameWon = false;
-let falling = false;
-let answered = new Set();
-let keys = {};
-let deviceObjects = [];
-let robot = null;
-let mixer = null;
-let activeAction = null;
-let animations = {};
-let recognition = null;
-let isListening = false;
-let lastTime = 0;
-let fallStarted = 0;
-let roundCorrectName = false;
-let roundCorrectType = false;
-let collectedSpeech = "";
-
-/* ثبت‌نام و رکورد زمان */
-let studentFirstName = "";
-let studentLastName = "";
-let studentFullName = "";
-let gameStartTime = 0;
-let finalElapsedMs = 0;
-let recordSaved = false;
-let cameraStream = null;
-let studentPhotoData = "";
-
-const gameScene = new THREE.Scene();
-gameScene.background = new THREE.Color(0x09162b);
-gameScene.fog = new THREE.Fog(0x09162b,35,125);
-
-const camera = new THREE.PerspectiveCamera(55,1,.1,300);
-camera.position.set(0,5,10);
-
-const renderer = new THREE.WebGLRenderer({
- canvas:$("gameCanvas"),
- antialias:true,
- alpha:false
-});
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-gameScene.add(new THREE.HemisphereLight(0xb9dcff,0x263047,2.1));
-
-const sun = new THREE.DirectionalLight(0xffffff,2.5);
-sun.position.set(-8,16,8);
-sun.castShadow = true;
-gameScene.add(sun);
-
-const ground = new THREE.Mesh(
- new THREE.PlaneGeometry(200,240),
- new THREE.MeshStandardMaterial({color:0x152a43,roughness:.9})
-);
-ground.rotation.x = -Math.PI/2;
-ground.position.y = -.06;
-ground.receiveShadow = true;
-gameScene.add(ground);
-
-const road = new THREE.Mesh(
- new THREE.PlaneGeometry(9,220),
- new THREE.MeshStandardMaterial({color:0x263c59,roughness:.95})
-);
-road.rotation.x = -Math.PI/2;
-road.position.set(0,0,-85);
-gameScene.add(road);
-
-for(let z=8;z>-190;z-=5){
- const line = new THREE.Mesh(
-  new THREE.BoxGeometry(.12,.025,2.1),
-  new THREE.MeshStandardMaterial({color:0x56dfff,emissive:0x12394d})
- );
- line.position.set(0,.015,z);
- gameScene.add(line);
-}
-
-const grid = new THREE.GridHelper(200,70,0x315273,0x1a304a);
-grid.position.set(0,.01,-85);
-gameScene.add(grid);
-
-const loader = new GLTFLoader();
-const textureLoader = new THREE.TextureLoader();
-
-function makeLabel(text){
- const canvas = document.createElement("canvas");
- canvas.width = 900;
- canvas.height = 170;
- const ctx = canvas.getContext("2d");
-
- ctx.fillStyle = "#0a1830";
- ctx.fillRect(0,0,900,170);
- ctx.strokeStyle = "#50dcff";
- ctx.lineWidth = 6;
- ctx.strokeRect(4,4,892,162);
- ctx.fillStyle = "#ffffff";
- ctx.font = "bold 43px Arial";
- ctx.textAlign = "center";
- ctx.textBaseline = "middle";
- ctx.fillText(text,450,85);
-
- const texture = new THREE.CanvasTexture(canvas);
- texture.colorSpace = THREE.SRGBColorSpace;
-
- const sprite = new THREE.Sprite(
-  new THREE.SpriteMaterial({map:texture})
- );
- sprite.scale.set(5.5,1.05,1);
- return sprite;
-}
-
-function makePlaceholder(name){
- const group = new THREE.Group();
-
- const body = new THREE.Mesh(
-  new THREE.BoxGeometry(2.2,1.7,.18),
-  new THREE.MeshStandardMaterial({
-   color:0x284c76,
-   emissive:0x10233e
-  })
- );
- group.add(body);
-
- const label = makeLabel(name);
- label.position.y = 1.15;
- group.add(label);
-
- return group;
-}
-
-function placeDevices(){
- devices.forEach((device,index)=>{
-  const side = index%2===0 ? -1 : 1;
-  const group = new THREE.Group();
-
-  group.position.set(side*3.25,0,3-index*8);
-  group.userData.index = index;
-  gameScene.add(group);
-  deviceObjects[index] = group;
-
-  const stand = new THREE.Mesh(
-   new THREE.CylinderGeometry(.85,1.05,.18,24),
-   new THREE.MeshStandardMaterial({
-    color:0x3b5274,
-    metalness:.35,
-    roughness:.5
-   })
+  
+  const devices = [
+   {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board","کیبورد","صفحه کلید"],image:"keyboard.jpg"},
+   {name:"Mouse",type:"Input",faType:"ورودی",aliases:["mouse","ماوس","موس"],image:"mouse.jpg"},
+   {name:"Microphone",type:"Input",faType:"ورودی",aliases:["microphone","mic","میکروفون","میکروفن"],image:"microphone.jpg"},
+   {name:"Monitor",type:"Output",faType:"خروجی",aliases:["monitor","screen","مانیتور","صفحه نمایش"],image:"monitor.jpg"},
+   {name:"Speaker",type:"Output",faType:"خروجی",aliases:["speaker","speakers","اسپیکر","بلندگو"],image:"speaker.jpg"},
+   {name:"Printer",type:"Output",faType:"خروجی",aliases:["printer","پرینتر","چاپگر"],image:"printer.jpg"},
+   {name:"Webcam",type:"Input",faType:"ورودی",aliases:["webcam","web cam","وبکم","دوربین وب"],image:"webcam.jpg"},
+   {name:"Headphones",type:"Output",faType:"خروجی",aliases:["headphones","headphone","headset","هدفون","هدست"],image:"headphones.jpg"},
+   {name:"Scanner",type:"Input",faType:"ورودی",aliases:["scanner","اسکنر"],image:"scanner.jpg"},
+   {name:"Gamepad",type:"Input",faType:"ورودی",aliases:["gamepad","game pad","controller","گیم پد","دسته بازی"],image:"gamepad.jpg"},
+   {name:"Digital Camera",type:"Input",faType:"ورودی",aliases:["digital camera","camera","دوربین دیجیتال","دوربین"],image:"camera.jpg"},
+   {name:"Projector",type:"Output",faType:"خروجی",aliases:["projector","پروژکتور"],image:"projector.jpg"}
+  ];
+  
+  let currentIndex=0, score=0, started=false, waitingAnswer=false;
+  let autoMoving=false, autoMoveToFinish=false, answerDeadline=0;
+  let answerTimer=null, celebrationTimer=null, locked=false;
+  let finishing=false, gameWon=false, falling=false;
+  let answered=new Set(), keys={}, deviceObjects=[];
+  let robot=null, mixer=null, activeAction=null, animations={};
+  let recognition=null, isListening=false, lastTime=0, fallStarted=0;
+  let roundCorrectName=false, roundCorrectType=false, collectedSpeech="";
+  
+  let studentFirstName="";
+  let studentLastName="";
+  let studentFullName="";
+  let gameStartTime=0;
+  let finalElapsedMs=0;
+  let recordSaved=false;
+  let cameraStream=null;
+  let studentPhotoData="";
+  
+  const gameScene=new THREE.Scene();
+  gameScene.background=new THREE.Color(0x09162b);
+  gameScene.fog=new THREE.Fog(0x09162b,35,125);
+  
+  const camera=new THREE.PerspectiveCamera(55,1,.1,300);
+  camera.position.set(0,5,10);
+  
+  const renderer=new THREE.WebGLRenderer({
+   canvas:$("gameCanvas"),antialias:true,alpha:false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  
+  gameScene.add(new THREE.HemisphereLight(0xb9dcff,0x263047,2.1));
+  
+  const sun=new THREE.DirectionalLight(0xffffff,2.5);
+  sun.position.set(-8,16,8);
+  sun.castShadow=true;
+  gameScene.add(sun);
+  
+  const ground=new THREE.Mesh(
+   new THREE.PlaneGeometry(200,240),
+   new THREE.MeshStandardMaterial({color:0x152a43,roughness:.9})
   );
-  stand.position.y = .1;
-  group.add(stand);
-
-  textureLoader.load(
-   "images/"+device.image,
-   texture=>{
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    const picture = new THREE.Mesh(
-     new THREE.PlaneGeometry(2.6,2.15),
-     new THREE.MeshBasicMaterial({
-      map:texture,
-      side:THREE.DoubleSide
-     })
+  ground.rotation.x=-Math.PI/2;
+  ground.position.y=-.06;
+  ground.receiveShadow=true;
+  gameScene.add(ground);
+  
+  const road=new THREE.Mesh(
+   new THREE.PlaneGeometry(9,220),
+   new THREE.MeshStandardMaterial({color:0x263c59,roughness:.95})
+  );
+  road.rotation.x=-Math.PI/2;
+  road.position.set(0,0,-85);
+  gameScene.add(road);
+  
+  for(let z=8;z>-190;z-=5){
+   const line=new THREE.Mesh(
+    new THREE.BoxGeometry(.12,.025,2.1),
+    new THREE.MeshStandardMaterial({color:0x56dfff,emissive:0x12394d})
+   );
+   line.position.set(0,.015,z);
+   gameScene.add(line);
+  }
+  
+  const grid=new THREE.GridHelper(200,70,0x315273,0x1a304a);
+  grid.position.set(0,.01,-85);
+  gameScene.add(grid);
+  
+  const loader=new GLTFLoader();
+  const textureLoader=new THREE.TextureLoader();
+  
+  function makeLabel(text){
+   const canvas=document.createElement("canvas");
+   canvas.width=900;
+   canvas.height=170;
+   const ctx=canvas.getContext("2d");
+   ctx.fillStyle="#0a1830";
+   ctx.fillRect(0,0,900,170);
+   ctx.strokeStyle="#50dcff";
+   ctx.lineWidth=6;
+   ctx.strokeRect(4,4,892,162);
+   ctx.fillStyle="#ffffff";
+   ctx.font="bold 43px Arial";
+   ctx.textAlign="center";
+   ctx.textBaseline="middle";
+   ctx.fillText(text,450,85);
+   const texture=new THREE.CanvasTexture(canvas);
+   texture.colorSpace=THREE.SRGBColorSpace;
+   const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture}));
+   sprite.scale.set(5.5,1.05,1);
+   return sprite;
+  }
+  
+  function makePlaceholder(name){
+   const group=new THREE.Group();
+   const body=new THREE.Mesh(
+    new THREE.BoxGeometry(2.2,1.7,.18),
+    new THREE.MeshStandardMaterial({color:0x284c76,emissive:0x10233e})
+   );
+   group.add(body);
+   const label=makeLabel(name);
+   label.position.y=1.15;
+   group.add(label);
+   return group;
+  }
+  
+  function placeDevices(){
+   devices.forEach((device,index)=>{
+    const side=index%2===0?-1:1;
+    const group=new THREE.Group();
+    group.position.set(side*3.25,0,3-index*8);
+    group.userData.index=index;
+    gameScene.add(group);
+    deviceObjects[index]=group;
+  
+    const stand=new THREE.Mesh(
+     new THREE.CylinderGeometry(.85,1.05,.18,24),
+     new THREE.MeshStandardMaterial({color:0x3b5274,metalness:.35,roughness:.5})
     );
-    picture.position.y = 1.55;
-    group.add(picture);
-   },
-   undefined,
-   ()=>{
-    const placeholder = makePlaceholder(device.name);
-    placeholder.position.y = .6;
-    group.add(placeholder);
-   }
-  );
-
-  const label = makeLabel(`مرحله ${index+1} - ${device.name}`);
-  label.scale.set(5.8,1.1,1);
-  label.position.y = 3.05;
-  group.add(label);
-
-  const ringMaterial = new THREE.MeshBasicMaterial({
-   color:0x183047,
-   transparent:true,
-   opacity:.35
-  });
-
-  const ring = new THREE.Mesh(
-   new THREE.TorusGeometry(1.45,.075,12,64),
-   ringMaterial
-  );
-  ring.rotation.x = Math.PI/2;
-  ring.position.y = .22;
-  ring.userData.material = ringMaterial;
-  group.add(ring);
-  group.userData.ring = ring;
-
-  const light = new THREE.PointLight(0x39ffb0,0,3.5);
-  light.position.y = .8;
-  group.add(light);
-  group.userData.light = light;
- });
-}
-
-placeDevices();
-
-const finishZ = -97;
-
-function createFinishLine(){
- const line = new THREE.Mesh(
-  new THREE.BoxGeometry(9,.12,.5),
-  new THREE.MeshStandardMaterial({
-   color:0xffdf70,
-   emissive:0xffaa22,
-   emissiveIntensity:2
-  })
- );
- line.position.set(0,.12,finishZ);
- gameScene.add(line);
-
- const sign = makeLabel("FINISH");
- sign.scale.set(5,1.2,1);
- sign.position.set(0,3,finishZ);
- gameScene.add(sign);
-
- for(let x=-4;x<=4;x+=2){
-  const post = new THREE.Mesh(
-   new THREE.BoxGeometry(.12,2.8,.12),
-   new THREE.MeshStandardMaterial({
-    color:0xffdf70,
-    emissive:0x805000
-   })
-  );
-  post.position.set(x,1.4,finishZ);
-  gameScene.add(post);
- }
-}
-
-createFinishLine();
-
-function normalizeText(value){
- return String(value||"")
-  .toLowerCase()
-  .replace(/[.,،؛:!?؟]/g,"")
-  .replace(/\s+/g," ")
-  .trim()
-  .replace(/ي/g,"ی")
-  .replace(/ك/g,"ک")
-  .replace(/ۀ/g,"ه")
-  .replace(/ة/g,"ه")
-  .replace(/[\u200c\u200f\u200e]/g,"");
-}
-
-function toFa(number){
- return String(number).replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[d]);
-}
-
-function showMessage(text,type="info"){
- $("message").className="message "+type;
- $("message").textContent=text;
-}
-
-function setAnimation(name){
- if(!mixer||!animations[name])return;
-
- const next=animations[name];
- if(activeAction===next)return;
-
- next.reset().fadeIn(.2).play();
-
- if(activeAction&&activeAction!==next){
-  activeAction.fadeOut(.2);
- }
-
- activeAction=next;
-}
-
-function updateUI(){
- $("score").textContent=toFa(score);
-
- $("stepLabel").textContent=
-  `مرحله ${toFa(Math.min(currentIndex+1,devices.length))} از ${toFa(devices.length)}`;
-
- $("progressBar").style.width=
-  (answered.size/devices.length*100)+"%";
-
- $("progressText").textContent=
-  `${toFa(answered.size)} از ${toFa(devices.length)} دستگاه کامل شده`;
-
- document.querySelectorAll(".device-item").forEach((item,index)=>{
-  item.classList.toggle("active",index===currentIndex&&!gameWon);
-  item.classList.toggle("done",answered.has(index));
- });
-}
-
-function updateStageLights(time=0){
- deviceObjects.forEach((group,index)=>{
-  const ring=group.userData.ring;
-  if(!ring)return;
-
-  const material=ring.userData.material;
-  const light=group.userData.light;
-
-  if(answered.has(index)){
-   material.color.set(0x183047);
-   material.opacity=.08;
-   ring.scale.setScalar(.78);
-   light.intensity=0;
-  }else if(index===currentIndex&&started&&!gameWon){
-   material.color.set(0x42ffb0);
-   material.opacity=.65+Math.sin(time*.006)*.3;
-   ring.scale.setScalar(1+Math.sin(time*.005)*.08);
-   light.color.set(0x39ffb0);
-   light.intensity=1.5+Math.sin(time*.006)*.8;
-  }else{
-   material.color.set(0x183047);
-   material.opacity=.3;
-   ring.scale.setScalar(1);
-   light.intensity=0;
+    stand.position.y=.1;
+    group.add(stand);
+  
+    textureLoader.load("images/"+device.image,texture=>{
+     texture.colorSpace=THREE.SRGBColorSpace;
+     const picture=new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6,2.15),
+      new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide})
+     );
+     picture.position.y=1.55;
+     group.add(picture);
+    },undefined,()=>{
+     const placeholder=makePlaceholder(device.name);
+     placeholder.position.y=.6;
+     group.add(placeholder);
+    });
+  
+    const label=makeLabel(`مرحله ${index+1} - ${device.name}`);
+    label.scale.set(5.8,1.1,1);
+    label.position.y=3.05;
+    group.add(label);
+  
+    const ringMaterial=new THREE.MeshBasicMaterial({
+     color:0x183047,transparent:true,opacity:.35
+    });
+    const ring=new THREE.Mesh(
+     new THREE.TorusGeometry(1.45,.075,12,64),ringMaterial
+    );
+    ring.rotation.x=Math.PI/2;
+    ring.position.y=.22;
+    ring.userData.material=ringMaterial;
+    group.add(ring);
+    group.userData.ring=ring;
+  
+    const light=new THREE.PointLight(0x39ffb0,0,3.5);
+    light.position.y=.8;
+    group.add(light);
+    group.userData.light=light;
+   });
   }
- });
-}
-
-function buildList(){
- const list=$("deviceList");
- list.replaceChildren();
-
- devices.forEach((device,index)=>{
-  const button=document.createElement("button");
-  button.className="device-item";
-  button.textContent=`${index+1}. ${device.name}`;
-
-  button.addEventListener("click",()=>{
-   if(!started)return;
-
-   if(index!==currentIndex){
-    showMessage("برای عبور، ابتدا مرحله فعال را کامل کن.","bad");
-   }else if(!waitingAnswer){
-    showMessage("به حلقه نورانی سبز نزدیک شو.","info");
-   }
-  });
-
-  list.appendChild(button);
- });
-
- updateUI();
-}
-
-function stopListening(){
- if(recognition&&isListening){
-  try{
-   recognition.abort();
-  }catch(error){}
- }
-
- isListening=false;
- $("micButton").classList.remove("ready");
- $("micButton").textContent="🎙️ پاسخ صوتی";
-}
-
-function startGame(){
- const firstNameInput = $("studentFirstName");
- const lastNameInput = $("studentLastName");
- const registrationMessage = $("registrationMessage");
-
- studentFirstName = firstNameInput?.value.trim() || "";
- studentLastName = lastNameInput?.value.trim() || "";
-
- if(!studentFirstName || !studentLastName){
-  if(registrationMessage) registrationMessage.textContent = "لطفاً نام و نام خانوادگی خود را وارد کن.";
-  if(!studentFirstName) firstNameInput?.focus();
-  else lastNameInput?.focus();
-  return;
- }
-
- if(!studentPhotoData){
-  if(registrationMessage) registrationMessage.textContent = "لطفاً ابتدا وب‌کم را روشن کن و عکس خودت را بگیر.";
-  return;
- }
-
- if(!robot){
-  showMessage("مدل RobotExpressive.glb هنوز بارگذاری نشده است.","bad");
-  return;
- }
-
- studentFullName = `${studentFirstName} ${studentLastName}`.replace(/\s+/g," ").trim();
- if(registrationMessage) registrationMessage.textContent = "";
-
- started = true;
- gameStartTime = performance.now();
- finalElapsedMs = 0;
- recordSaved = false;
-
- backgroundMusic.play().catch(error=>{
-  console.warn("Background music could not start:",error);
- });
- locked = false;
-
- $("startOverlay").style.display = "none";
- $("gameCanvas").focus();
- $("robotStatus").textContent = "🤖 حرکت کن!";
- $("deviceTitle").textContent = devices[0].name;
- $("deviceType").textContent = "به حلقه سبز مرحله اول نزدیک شو.";
- $("distanceStatus").textContent = "مرحله اول";
-
- showMessage("بازی شروع شد! به حلقه سبز مرحله اول نزدیک شو.","info");
- updateUI();
-}
-function moveRobot(direction){
- if(!started||!robot||locked||waitingAnswer||gameWon)return;
-
- const map={
-  up:"ArrowUp",
-  down:"ArrowDown",
-  left:"ArrowLeft",
-  right:"ArrowRight"
- };
-
- if(map[direction])keys[map[direction]]=true;
-}
-
-function releaseDirection(direction){
- const map={
-  up:"ArrowUp",
-  down:"ArrowDown",
-  left:"ArrowLeft",
-  right:"ArrowRight"
- };
-
- if(map[direction])keys[map[direction]]=false;
-}
-
-window.addEventListener("keydown",event=>{
- const key=event.key.toLowerCase();
-
- if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(key)){
-  event.preventDefault();
- }
-
- if(key==="arrowup"||key==="w")keys.ArrowUp=true;
- if(key==="arrowdown"||key==="s")keys.ArrowDown=true;
- if(key==="arrowleft"||key==="a")keys.ArrowLeft=true;
- if(key==="arrowright"||key==="d")keys.ArrowRight=true;
-});
-
-window.addEventListener("keyup",event=>{
- const key=event.key.toLowerCase();
-
- if(key==="arrowup"||key==="w")keys.ArrowUp=false;
- if(key==="arrowdown"||key==="s")keys.ArrowDown=false;
- if(key==="arrowleft"||key==="a")keys.ArrowLeft=false;
- if(key==="arrowright"||key==="d")keys.ArrowRight=false;
-});
-
-/* کنترل لمسی پیوسته؛ نگه‌داشتن فلش باعث حرکت مداوم می‌شود */
-document.querySelectorAll("[data-move]").forEach(button=>{
- const direction=button.dataset.move;
-
- button.addEventListener("pointerdown",event=>{
-  event.preventDefault();
-
-  try{
-   button.setPointerCapture(event.pointerId);
-  }catch(error){}
-
-  moveRobot(direction);
- });
-
- const release=event=>{
-  if(event)event.preventDefault();
-  releaseDirection(direction);
- };
-
- button.addEventListener("pointerup",release);
- button.addEventListener("pointercancel",release);
- button.addEventListener("lostpointercapture",release);
-});
-
-window.addEventListener("blur",()=>{
- keys={};
-});
-
-function findNearbyDevice(){
- if(!robot||currentIndex>=devices.length||answered.has(currentIndex)){
-  return -1;
- }
-
- const group=deviceObjects[currentIndex];
- if(!group)return -1;
-
- return robot.position.distanceTo(group.position)<1.65
-  ?currentIndex
-  :-1;
-}
-
-function clearAnswerTimer(){
- if(answerTimer){
-  clearInterval(answerTimer);
-  answerTimer=null;
- }
-
- answerDeadline=0;
-}
-
-function activateDevice(index){
- if(index!==currentIndex||waitingAnswer||locked||answered.has(index)||autoMoving){
-  return;
- }
-
- waitingAnswer=true;
- locked=true;
- keys={};
-
- roundCorrectName=false;
- roundCorrectType=false;
-
- $("micButton").disabled=false;
- $("micButton").classList.add("ready");
- $("nextButton").disabled=true;
-
- $("deviceTitle").textContent=devices[index].name;
- $("deviceType").textContent=
-  `نام دستگاه را بگو و مشخص کن ورودی است یا خروجی`;
-
- $("distanceStatus").textContent="⏱️ ۱۰ ثانیه فرصت";
- $("robotStatus").textContent="🤖 گوش می‌کنم";
- collectedSpeech="";
- $("answerText").textContent=
-  `در ۱۰ ثانیه بگو: ${devices[index].name} و «${devices[index].faType}»`;
-
- setAnimation("Idle");
-
- showMessage(
-  `مرحله ${index+1}: تا ۱۰ ثانیه فرصت داری نام دستگاه و «ورودی» یا «خروجی» را بگویی. می‌توانی بین آن‌ها مکث کنی.`,
-  "info"
- );
-
- clearAnswerTimer();
- answerDeadline=Date.now()+10000;
-
- answerTimer=setInterval(()=>{
-  if(!waitingAnswer){
-   clearAnswerTimer();
-   return;
-  }
-
-  const remaining=Math.max(
-   0,
-   Math.ceil((answerDeadline-Date.now())/1000)
-  );
-
-  $("distanceStatus").textContent=
-   `⏱️ ${toFa(remaining)} ثانیه باقی‌مانده`;
-
-  if(remaining<=0){
-   clearAnswerTimer();
-
-   if(waitingAnswer){
-    loseGame("۱۰ ثانیه تمام شد؛ باید در این زمان هم نام دستگاه و هم ورودی یا خروجی بودن آن گفته شود.");
+  
+  placeDevices();
+  const finishZ=-97;
+  
+  function createFinishLine(){
+   const line=new THREE.Mesh(
+    new THREE.BoxGeometry(9,.12,.5),
+    new THREE.MeshStandardMaterial({
+     color:0xffdf70,emissive:0xffaa22,emissiveIntensity:2
+    })
+   );
+   line.position.set(0,.12,finishZ);
+   gameScene.add(line);
+   const sign=makeLabel("FINISH");
+   sign.scale.set(5,1.2,1);
+   sign.position.set(0,3,finishZ);
+   gameScene.add(sign);
+   for(let x=-4;x<=4;x+=2){
+    const post=new THREE.Mesh(
+     new THREE.BoxGeometry(.12,2.8,.12),
+     new THREE.MeshStandardMaterial({color:0xffdf70,emissive:0x805000})
+    );
+    post.position.set(x,1.4,finishZ);
+    gameScene.add(post);
    }
   }
- },200);
-
- startListening();
-}
-
-function startListening(){
- const SpeechRecognition=
-  window.SpeechRecognition||window.webkitSpeechRecognition;
-
- if(!SpeechRecognition){
-  showMessage(
-   "تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود. بازی را در Chrome و با HTTPS باز کن.",
-   "bad"
-  );
-  $("micButton").disabled=false;
-  return;
- }
-
- if(!waitingAnswer||!started||gameWon||isListening)return;
-
- try{
-  recognition=new SpeechRecognition();
-  recognition.lang="fa-IR";
-  recognition.continuous=true;
-  recognition.interimResults=true;
-  recognition.maxAlternatives=3;
-
-  isListening=true;
-  $("micButton").classList.add("ready");
-  $("micButton").textContent="🎙️ در حال شنیدن پاسخ";
-
-  showMessage(
-   "هر وقت آماده‌ای صحبت کن؛ می‌توانی نام دستگاه و ورودی/خروجی را با مکث بگویی.",
-   "info"
-  );
-
-  recognition.onresult=event=>{
-   if(!waitingAnswer)return;
-
-   let interimText="";
-   for(let i=event.resultIndex;i<event.results.length;i++){
-    const result=event.results[i];
-    const textPart=result[0].transcript.trim();
-    if(result.isFinal&&textPart){
-     collectedSpeech+=" "+textPart;
-    }else if(textPart){
-     interimText+=" "+textPart;
+  createFinishLine();
+  
+  function normalizeText(value){
+   return String(value||"").toLowerCase()
+    .replace(/[.,،؛:!?؟]/g,"")
+    .replace(/\s+/g," ").trim()
+    .replace(/ي/g,"ی").replace(/ك/g,"ک")
+    .replace(/ۀ/g,"ه").replace(/ة/g,"ه")
+    .replace(/[\u200c\u200f\u200e]/g,"");
+  }
+  
+  function toFa(number){
+   return String(number).replace(/\d/g,d=>"۰۱۲۳۴۵۶۷۸۹"[d]);
+  }
+  
+  function showMessage(text,type="info"){
+   $("message").className="message "+type;
+   $("message").textContent=text;
+  }
+  
+  function setAnimation(name){
+   if(!mixer||!animations[name])return;
+   const next=animations[name];
+   if(activeAction===next)return;
+   next.reset().fadeIn(.2).play();
+   if(activeAction&&activeAction!==next)activeAction.fadeOut(.2);
+   activeAction=next;
+  }
+  
+  function updateUI(){
+   $("score").textContent=toFa(score);
+   $("stepLabel").textContent=
+    `مرحله ${toFa(Math.min(currentIndex+1,devices.length))} از ${toFa(devices.length)}`;
+   $("progressBar").style.width=(answered.size/devices.length*100)+"%";
+   $("progressText").textContent=
+    `${toFa(answered.size)} از ${toFa(devices.length)} دستگاه کامل شده`;
+   document.querySelectorAll(".device-item").forEach((item,index)=>{
+    item.classList.toggle("active",index===currentIndex&&!gameWon);
+    item.classList.toggle("done",answered.has(index));
+   });
+  }
+  
+  function updateStageLights(time=0){
+   deviceObjects.forEach((group,index)=>{
+    const ring=group.userData.ring;
+    if(!ring)return;
+    const material=ring.userData.material;
+    const light=group.userData.light;
+    if(answered.has(index)){
+     material.color.set(0x183047);
+     material.opacity=.08;
+     ring.scale.setScalar(.78);
+     light.intensity=0;
+    }else if(index===currentIndex&&started&&!gameWon){
+     material.color.set(0x42ffb0);
+     material.opacity=.65+Math.sin(time*.006)*.3;
+     ring.scale.setScalar(1+Math.sin(time*.005)*.08);
+     light.color.set(0x39ffb0);
+     light.intensity=1.5+Math.sin(time*.006)*.8;
+    }else{
+     material.color.set(0x183047);
+     material.opacity=.3;
+     ring.scale.setScalar(1);
+     light.intensity=0;
     }
-   }
-
-   const allSpoken=normalizeText(collectedSpeech+" "+interimText);
-   $("answerText").textContent="پاسخ شنیده‌شده: "+(collectedSpeech+" "+interimText).trim();
-
-   const device=devices[currentIndex];
-   const saysInput=allSpoken.includes("ورودی");
-   const saysOutput=allSpoken.includes("خروجی");
-   const correctType=device.type==="Input"
-    ?saysInput&&!saysOutput
-    :saysOutput&&!saysInput;
-   const finalSpoken=normalizeText(collectedSpeech);
-   const finalSaysInput=finalSpoken.includes("ورودی");
-   const finalSaysOutput=finalSpoken.includes("خروجی");
-   const wrongType=device.type==="Input"
-    ?finalSaysOutput&&!finalSaysInput
-    :finalSaysInput&&!finalSaysOutput;
-   const correctName=containsDeviceName(allSpoken,device.aliases);
-
-   roundCorrectName=correctName;
-   roundCorrectType=correctType;
-
-   if(correctName&&correctType){
-    $("answerText").textContent=
-     `آفرین! نام دستگاه و نوع آن درست تشخیص داده شد: ${device.name}، ${device.faType}`;
-    completeStage();
-    return;
-   }
-
-   if(correctName&&wrongType){
-    loseGame(`نام دستگاه درست بود، اما نوع آن اشتباه بود. پاسخ صحیح: ${device.name}، ${device.faType}`);
-    return;
-   }
-
-   if(correctName&&!saysInput&&!saysOutput){
-    showMessage("نام دستگاه شنیده شد. حالا هر وقت آماده‌ای بگو «ورودی» یا «خروجی»؛ هنوز فرصت داری.","info");
-   }else if((saysInput||saysOutput)&&!correctName){
-    showMessage("نوع دستگاه شنیده شد. حالا نام دستگاه را هم بگو؛ هنوز فرصت داری.","info");
-   }else{
-    showMessage("گوش می‌کنم؛ نام دستگاه و نوع آن را هر کدام در هر زمانی از ۱۰ ثانیه بگو.","info");
-   }
-  };
-
-  recognition.onerror=event=>{
-   isListening=false;
-   if(!waitingAnswer)return;
-
-   if(event.error==="not-allowed"){
-    $("micButton").disabled=false;
-    $("micButton").textContent="🔁 اجازه میکروفون را بررسی کن";
-    showMessage("اجازه استفاده از میکروفون را در تنظیمات مرورگر فعال کن.","bad");
-   }else if(event.error!=="aborted"&&event.error!=="no-speech"){
-    showMessage("شنیدن صدا موقتاً متوقف شد؛ تلاش می‌کنم دوباره گوش بدهم.","info");
-   }
-  };
-
-  recognition.onend=()=>{
-   isListening=false;
-   if(waitingAnswer&&!gameWon&&Date.now()<answerDeadline){
-    setTimeout(()=>{
-     if(waitingAnswer&&!isListening&&Date.now()<answerDeadline){
-      startListening();
+   });
+  }
+  
+  function buildList(){
+   const list=$("deviceList");
+   list.replaceChildren();
+   devices.forEach((device,index)=>{
+    const button=document.createElement("button");
+    button.className="device-item";
+    button.textContent=`${index+1}. ${device.name}`;
+    button.addEventListener("click",()=>{
+     if(!started)return;
+     if(index!==currentIndex){
+      showMessage("برای عبور، ابتدا مرحله فعال را کامل کن.","bad");
+     }else if(!waitingAnswer){
+      showMessage("به حلقه نورانی سبز نزدیک شو.","info");
      }
-    },250);
-   }else if(waitingAnswer&&!gameWon){
-    $("micButton").disabled=false;
-    $("micButton").classList.add("ready");
-    $("micButton").textContent="🎙️ پاسخ صوتی";
-   }
-  };
-
-  recognition.start();
- }catch(error){
-  isListening=false;
-  $("micButton").disabled=false;
-  $("micButton").classList.add("ready");
-  $("micButton").textContent="🔁 شروع دوباره شنود";
-  showMessage("میکروفون شروع نشد. اجازه میکروفون را بررسی کن و دوباره امتحان کن.","bad");
- }
-}
-
-function containsDeviceName(spoken,aliases){
- const text=normalizeText(spoken);
- for(const aliasValue of aliases){
-  const alias=normalizeText(aliasValue);
-  if(!alias)continue;
-  if(text.includes(alias))return true;
-  const words=alias.split(" ").filter(Boolean);
-  if(words.length===1){
-   for(const word of text.split(" ")){
-    if(similarity(word,alias)>=0.70)return true;
-   }
-  }else{
-   const spokenWords=text.split(" ").filter(Boolean);
-   for(let i=0;i<=spokenWords.length-words.length;i++){
-    const phrase=spokenWords.slice(i,i+words.length).join(" ");
-    if(similarity(phrase,alias)>=0.70)return true;
-   }
+    });
+    list.appendChild(button);
+   });
+   updateUI();
   }
- }
- return false;
-}
-
-function similarity(a,b){
- if(a===b)return 1;
- if(!a||!b)return 0;
- const previous=Array.from({length:b.length+1},(_,i)=>i);
- for(let i=1;i<=a.length;i++){
-  let diagonal=previous[0];
-  previous[0]=i;
-  for(let j=1;j<=b.length;j++){
-   const old=previous[j];
-   previous[j]=Math.min(
-    previous[j]+1,
-    previous[j-1]+1,
-    diagonal+(a[i-1]===b[j-1]?0:1)
-   );
-   diagonal=old;
+  
+  function stopListening(){
+   if(recognition&&isListening){
+    try{recognition.abort();}catch(error){}
+   }
+   isListening=false;
+   $("micButton").classList.remove("ready");
+   $("micButton").textContent="🎙️ پاسخ صوتی";
   }
- }
- const distance=previous[b.length];
- return 1-distance/Math.max(a.length,b.length);
-}
-
-const backgroundMusic=new Audio("sounds/background.mp3");
-backgroundMusic.loop=true;
-backgroundMusic.volume=.15;
-backgroundMusic.preload="auto";
-
-const laughSound=new Audio("sounds/laugh.mp3");
-const crySound=new Audio("sounds/cry.mp3");
-const victorySound=new Audio("sounds/victory.mp3");
-
-[laughSound,crySound,victorySound].forEach(audio=>{
- audio.preload="auto";
-});
-
-function stopSounds(){
- [laughSound,crySound,victorySound].forEach(audio=>{
-  audio.pause();
-  audio.currentTime=0;
- });
-}
-
-function playSound(audio){
- audio.currentTime=0;
- audio.play().catch(()=>{});
-}
-
-function loseGame(reason){
- if(gameWon||finishing||!started)return;
-
- clearAnswerTimer();
-
- if(celebrationTimer){
-  clearTimeout(celebrationTimer);
-  celebrationTimer=null;
- }
-
- autoMoving=false;
- autoMoveToFinish=false;
- waitingAnswer=false;
- locked=true;
- falling=true;
- fallStarted=performance.now();
- keys={};
-
- stopListening();
- stopSounds();
-
- $("micButton").disabled=true;
- $("nextButton").disabled=true;
- $("startOverlay").style.display="none";
-
- $("emotion").textContent="😭";
- $("emotion").style.display="block";
-
- $("robotStatus").textContent="🤖 شما باختی!";
- $("distanceStatus").textContent="بازی تمام شد";
- $("deviceTitle").textContent="GAME OVER";
- $("deviceType").textContent="پاسخ صحیح نبود!";
- $("answerText").textContent=reason;
-
- showMessage(
-  "❌ بازی تمام شد! برای بازی دوباره، دکمه شروع دوباره را بزن.",
-  "bad"
- );
-
- setAnimation("Death");
- playSound(crySound);
-
- if("speechSynthesis" in window){
-  speechSynthesis.cancel();
-
-  const message=new SpeechSynthesisUtterance(
-   "بازی تمام شد. برای شروع دوباره، دکمه شروع دوباره را بزن."
-  );
-
-  message.lang="fa-IR";
-  message.rate=.85;
-  message.pitch=1;
-  speechSynthesis.speak(message);
- }
-}
-
-function completeStage(){
- if(!waitingAnswer||!roundCorrectName||!roundCorrectType)return;
-
- clearAnswerTimer();
-
- const completedIndex=currentIndex;
-
- answered.add(completedIndex);
- score+=10;
- waitingAnswer=false;
- locked=true;
- keys={};
-
- stopListening();
-
- $("micButton").disabled=true;
- $("micButton").classList.remove("ready");
- $("nextButton").disabled=true;
-
- $("deviceTitle").textContent="Correct! 🎉";
- $("deviceType").textContent=
-  `${devices[completedIndex].name} — ${devices[completedIndex].faType}`;
-
- $("robotStatus").textContent="🤖 آفرین! جشن ۷ ثانیه‌ای";
- $("distanceStatus").textContent="🎉 خوشحالی ربات";
-
- $("emotion").textContent="🎉";
- $("emotion").style.display="block";
-
- showMessage(
-  "آفرین! نوع دستگاه را درست گفتی؛ ۱۰ امتیاز گرفتی. ربات ۷ ثانیه خوشحالی می‌کند.",
-  "good"
- );
-
- playSound(laughSound);
- setAnimation("Wave");
- updateUI();
-
- if(celebrationTimer){
-  clearTimeout(celebrationTimer);
- }
-
- celebrationTimer=setTimeout(()=>{
-  celebrationTimer=null;
-  $("emotion").style.display="none";
-
-  if(answered.size===devices.length){
-   finishing=true;
-   autoMoving=true;
-   autoMoveToFinish=true;
+  
+  function startGame(){
+   const firstNameInput=$("studentFirstName");
+   const lastNameInput=$("studentLastName");
+   const registrationMessage=$("registrationMessage");
+   studentFirstName=firstNameInput?.value.trim()||"";
+   studentLastName=lastNameInput?.value.trim()||"";
+  
+   if(!studentFirstName||!studentLastName){
+    if(registrationMessage)registrationMessage.textContent="لطفاً نام و نام خانوادگی خود را وارد کن.";
+    if(!studentFirstName)firstNameInput?.focus();
+    else lastNameInput?.focus();
+    return;
+   }
+  
+   if(!studentPhotoData){
+    if(registrationMessage)registrationMessage.textContent="لطفاً ابتدا وب‌کم را روشن کن و عکس خودت را بگیر.";
+    return;
+   }
+  
+   if(!robot){
+    showMessage("مدل RobotExpressive.glb هنوز بارگذاری نشده است.","bad");
+    return;
+   }
+  
+   studentFullName=`${studentFirstName} ${studentLastName}`.replace(/\s+/g," ").trim();
+   if(registrationMessage)registrationMessage.textContent="";
+   started=true;
+   gameStartTime=performance.now();
+   finalElapsedMs=0;
+   recordSaved=false;
+  
+   backgroundMusic.play().catch(error=>{
+    console.warn("Background music could not start:",error);
+   });
    locked=false;
-   waitingAnswer=false;
+   $("startOverlay").style.display="none";
+   $("gameCanvas").focus();
+   $("robotStatus").textContent="🤖 حرکت کن!";
+   $("deviceTitle").textContent=devices[0].name;
+   $("deviceType").textContent="به حلقه سبز مرحله اول نزدیک شو.";
+   $("distanceStatus").textContent="مرحله اول";
+   showMessage("بازی شروع شد! به حلقه سبز مرحله اول نزدیک شو.","info");
+   updateUI();
+  }
+  
+  function moveRobot(direction){
+   if(!started||!robot||locked||waitingAnswer||gameWon)return;
+   const map={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"};
+   if(map[direction])keys[map[direction]]=true;
+  }
+  
+  function releaseDirection(direction){
+   const map={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"};
+   if(map[direction])keys[map[direction]]=false;
+  }
+  
+  window.addEventListener("keydown",event=>{
+   const key=event.key.toLowerCase();
+   if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(key))event.preventDefault();
+   if(key==="arrowup"||key==="w")keys.ArrowUp=true;
+   if(key==="arrowdown"||key==="s")keys.ArrowDown=true;
+   if(key==="arrowleft"||key==="a")keys.ArrowLeft=true;
+   if(key==="arrowright"||key==="d")keys.ArrowRight=true;
+  });
+  
+  window.addEventListener("keyup",event=>{
+   const key=event.key.toLowerCase();
+   if(key==="arrowup"||key==="w")keys.ArrowUp=false;
+   if(key==="arrowdown"||key==="s")keys.ArrowDown=false;
+   if(key==="arrowleft"||key==="a")keys.ArrowLeft=false;
+   if(key==="arrowright"||key==="d")keys.ArrowRight=false;
+  });
+  
+  document.querySelectorAll("[data-move]").forEach(button=>{
+   const direction=button.dataset.move;
+   button.addEventListener("pointerdown",event=>{
+    event.preventDefault();
+    try{button.setPointerCapture(event.pointerId);}catch(error){}
+    moveRobot(direction);
+   });
+   const release=event=>{
+    if(event)event.preventDefault();
+    releaseDirection(direction);
+   };
+   button.addEventListener("pointerup",release);
+   button.addEventListener("pointercancel",release);
+   button.addEventListener("lostpointercapture",release);
+  });
+  
+  window.addEventListener("blur",()=>{keys={};});
+  
+  function findNearbyDevice(){
+   if(!robot||currentIndex>=devices.length||answered.has(currentIndex))return -1;
+   const group=deviceObjects[currentIndex];
+   if(!group)return -1;
+   return robot.position.distanceTo(group.position)<1.65?currentIndex:-1;
+  }
+  
+  function clearAnswerTimer(){
+   if(answerTimer){clearInterval(answerTimer);answerTimer=null;}
+   answerDeadline=0;
+  }
+  
+  function activateDevice(index){
+   if(index!==currentIndex||waitingAnswer||locked||answered.has(index)||autoMoving)return;
+   waitingAnswer=true;
+   locked=true;
    keys={};
-
-   $("deviceTitle").textContent="FINISH";
-   $("deviceType").textContent="ربات به سمت خط پایان حرکت می‌کند.";
-   $("distanceStatus").textContent="🏁 حرکت خودکار به خط پایان";
-   $("robotStatus").textContent="🏁 در حال حرکت";
-
-   recoverRobot();
-
-   showMessage(
-    "همه دستگاه‌ها کامل شد؛ ربات خودش به سمت خط پایان می‌رود.",
-    "good"
-   );
-
-  }else{
-   currentIndex++;
-   locked=false;
-   waitingAnswer=false;
-   finishing=false;
    roundCorrectName=false;
    roundCorrectType=false;
+   $("micButton").disabled=false;
+   $("micButton").classList.add("ready");
+   $("nextButton").disabled=true;
+   $("deviceTitle").textContent=devices[index].name;
+   $("deviceType").textContent="نام دستگاه را بگو و مشخص کن ورودی است یا خروجی";
+   $("distanceStatus").textContent="⏱️ ۱۰ ثانیه فرصت";
+   $("robotStatus").textContent="🤖 گوش می‌کنم";
+   collectedSpeech="";
+   $("answerText").textContent=`در ۱۰ ثانیه بگو: ${devices[index].name} و «${devices[index].faType}»`;
+   setAnimation("Idle");
+   showMessage(`مرحله ${index+1}: تا ۱۰ ثانیه فرصت داری نام دستگاه و «ورودی» یا «خروجی» را بگویی. می‌توانی بین آن‌ها مکث کنی.`,"info");
+  
+   clearAnswerTimer();
+   answerDeadline=Date.now()+10000;
+   answerTimer=setInterval(()=>{
+    if(!waitingAnswer){clearAnswerTimer();return;}
+    const remaining=Math.max(0,Math.ceil((answerDeadline-Date.now())/1000));
+    $("distanceStatus").textContent=`⏱️ ${toFa(remaining)} ثانیه باقی‌مانده`;
+    if(remaining<=0){
+     clearAnswerTimer();
+     if(waitingAnswer)loseGame("۱۰ ثانیه تمام شد؛ باید در این زمان هم نام دستگاه و هم ورودی یا خروجی بودن آن گفته شود.");
+    }
+   },200);
+   startListening();
+  }
+  
+  function startListening(){
+   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+   if(!SpeechRecognition){
+    showMessage("تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود. بازی را در Chrome و با HTTPS باز کن.","bad");
+    $("micButton").disabled=false;
+    return;
+   }
+   if(!waitingAnswer||!started||gameWon||isListening)return;
+  
+   try{
+    recognition=new SpeechRecognition();
+    recognition.lang="fa-IR";
+    recognition.continuous=true;
+    recognition.interimResults=true;
+    recognition.maxAlternatives=3;
+    isListening=true;
+    $("micButton").classList.add("ready");
+    $("micButton").textContent="🎙️ در حال شنیدن پاسخ";
+    showMessage("هر وقت آماده‌ای صحبت کن؛ می‌توانی نام دستگاه و ورودی/خروجی را با مکث بگویی.","info");
+  
+    recognition.onresult=event=>{
+     if(!waitingAnswer)return;
+     let interimText="";
+     for(let i=event.resultIndex;i<event.results.length;i++){
+      const result=event.results[i];
+      const textPart=result[0].transcript.trim();
+      if(result.isFinal&&textPart)collectedSpeech+=" "+textPart;
+      else if(textPart)interimText+=" "+textPart;
+     }
+  
+     const allSpoken=normalizeText(collectedSpeech+" "+interimText);
+     $("answerText").textContent="پاسخ شنیده‌شده: "+(collectedSpeech+" "+interimText).trim();
+     const device=devices[currentIndex];
+     const saysInput=allSpoken.includes("ورودی");
+     const saysOutput=allSpoken.includes("خروجی");
+     const correctType=device.type==="Input"?saysInput&&!saysOutput:saysOutput&&!saysInput;
+     const finalSpoken=normalizeText(collectedSpeech);
+     const finalSaysInput=finalSpoken.includes("ورودی");
+     const finalSaysOutput=finalSpoken.includes("خروجی");
+     const wrongType=device.type==="Input"?finalSaysOutput&&!finalSaysInput:finalSaysInput&&!finalSaysOutput;
+     const correctName=containsDeviceName(allSpoken,device.aliases);
+     roundCorrectName=correctName;
+     roundCorrectType=correctType;
+  
+     if(correctName&&correctType){
+      $("answerText").textContent=`آفرین! نام دستگاه و نوع آن درست تشخیص داده شد: ${device.name}، ${device.faType}`;
+      completeStage();
+      return;
+     }
+  
+     if(correctName&&wrongType){
+      loseGame(`نام دستگاه درست بود، اما نوع آن اشتباه بود. پاسخ صحیح: ${device.name}، ${device.faType}`);
+      return;
+     }
+  
+     if(correctName&&!saysInput&&!saysOutput){
+      showMessage("نام دستگاه شنیده شد. حالا هر وقت آماده‌ای بگو «ورودی» یا «خروجی»؛ هنوز فرصت داری.","info");
+     }else if((saysInput||saysOutput)&&!correctName){
+      showMessage("نوع دستگاه شنیده شد. حالا نام دستگاه را هم بگو؛ هنوز فرصت داری.","info");
+     }else{
+      showMessage("گوش می‌کنم؛ نام دستگاه و نوع آن را هر کدام در هر زمانی از ۱۰ ثانیه بگو.","info");
+     }
+    };
+  
+    recognition.onerror=event=>{
+     isListening=false;
+     if(!waitingAnswer)return;
+     if(event.error==="not-allowed"){
+      $("micButton").disabled=false;
+      $("micButton").textContent="🔁 اجازه میکروفون را بررسی کن";
+      showMessage("اجازه استفاده از میکروفون را در تنظیمات مرورگر فعال کن.","bad");
+     }else if(event.error!=="aborted"&&event.error!=="no-speech"){
+      showMessage("شنیدن صدا موقتاً متوقف شد؛ تلاش می‌کنم دوباره گوش بدهم.","info");
+     }
+    };
+  
+    recognition.onend=()=>{
+     isListening=false;
+     if(waitingAnswer&&!gameWon&&Date.now()<answerDeadline){
+      setTimeout(()=>{
+       if(waitingAnswer&&!isListening&&Date.now()<answerDeadline)startListening();
+      },250);
+     }else if(waitingAnswer&&!gameWon){
+      $("micButton").disabled=false;
+      $("micButton").classList.add("ready");
+      $("micButton").textContent="🎙️ پاسخ صوتی";
+     }
+    };
+  
+    recognition.start();
+   }catch(error){
+    isListening=false;
+    $("micButton").disabled=false;
+    $("micButton").classList.add("ready");
+    $("micButton").textContent="🔁 شروع دوباره شنود";
+    showMessage("میکروفون شروع نشد. اجازه میکروفون را بررسی کن و دوباره امتحان کن.","bad");
+   }
+  }
+  
+  function containsDeviceName(spoken,aliases){
+   const text=normalizeText(spoken);
+   for(const aliasValue of aliases){
+    const alias=normalizeText(aliasValue);
+    if(!alias)continue;
+    if(text.includes(alias))return true;
+    const words=alias.split(" ").filter(Boolean);
+    if(words.length===1){
+     for(const word of text.split(" ")){
+      if(similarity(word,alias)>=.70)return true;
+     }
+    }else{
+     const spokenWords=text.split(" ").filter(Boolean);
+     for(let i=0;i<=spokenWords.length-words.length;i++){
+      const phrase=spokenWords.slice(i,i+words.length).join(" ");
+      if(similarity(phrase,alias)>=.70)return true;
+     }
+    }
+   }
+   return false;
+  }
+  
+  function similarity(a,b){
+   if(a===b)return 1;
+   if(!a||!b)return 0;
+   const previous=Array.from({length:b.length+1},(_,i)=>i);
+   for(let i=1;i<=a.length;i++){
+    let diagonal=previous[0];
+    previous[0]=i;
+    for(let j=1;j<=b.length;j++){
+     const old=previous[j];
+     previous[j]=Math.min(previous[j]+1,previous[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));
+     diagonal=old;
+    }
+   }
+   return 1-previous[b.length]/Math.max(a.length,b.length);
+  }
+  
+  const backgroundMusic=new Audio("sounds/background.mp3");
+  backgroundMusic.loop=true;
+  backgroundMusic.volume=.15;
+  backgroundMusic.preload="auto";
+  const laughSound=new Audio("sounds/laugh.mp3");
+  const crySound=new Audio("sounds/cry.mp3");
+  const victorySound=new Audio("sounds/victory.mp3");
+  [laughSound,crySound,victorySound].forEach(audio=>{audio.preload="auto";});
+  
+  function stopSounds(){
+   [laughSound,crySound,victorySound].forEach(audio=>{
+    audio.pause();
+    audio.currentTime=0;
+   });
+  }
+  
+  function playSound(audio){
+   audio.currentTime=0;
+   audio.play().catch(()=>{});
+  }
+  
+  function loseGame(reason){
+   if(gameWon||finishing||!started)return;
+   clearAnswerTimer();
+   if(celebrationTimer){clearTimeout(celebrationTimer);celebrationTimer=null;}
+   autoMoving=false;
+   autoMoveToFinish=false;
+   waitingAnswer=false;
+   locked=true;
+   falling=true;
+   fallStarted=performance.now();
    keys={};
-
+   stopListening();
+   stopSounds();
+   $("micButton").disabled=true;
+   $("nextButton").disabled=true;
+   $("startOverlay").style.display="none";
+   $("emotion").textContent="😭";
+   $("emotion").style.display="block";
+   $("robotStatus").textContent="🤖 شما باختی!";
+   $("distanceStatus").textContent="بازی تمام شد";
+   $("deviceTitle").textContent="GAME OVER";
+   $("deviceType").textContent="پاسخ صحیح نبود!";
+   $("answerText").textContent=reason;
+   showMessage("❌ بازی تمام شد! برای بازی دوباره، دکمه شروع دوباره را بزن.","bad");
+   setAnimation("Death");
+   playSound(crySound);
+  
+   if("speechSynthesis" in window){
+    speechSynthesis.cancel();
+    const message=new SpeechSynthesisUtterance("بازی تمام شد. برای شروع دوباره، دکمه شروع دوباره را بزن.");
+    message.lang="fa-IR";
+    message.rate=.85;
+    message.pitch=1;
+    speechSynthesis.speak(message);
+   }
+  }
+  
+  function completeStage(){
+   if(!waitingAnswer||!roundCorrectName||!roundCorrectType)return;
+   clearAnswerTimer();
+   const completedIndex=currentIndex;
+   answered.add(completedIndex);
+   score+=10;
+   waitingAnswer=false;
+   locked=true;
+   keys={};
+   stopListening();
    $("micButton").disabled=true;
    $("micButton").classList.remove("ready");
    $("nextButton").disabled=true;
-
-   $("deviceTitle").textContent=devices[currentIndex].name;
-   $("deviceType").textContent="ربات به سمت دستگاه بعدی حرکت می‌کند.";
-   $("distanceStatus").textContent=`مرحله ${toFa(currentIndex+1)}`;
-   $("robotStatus").textContent="🤖 حرکت خودکار";
-
-   autoMoving=true;
-   autoMoveToFinish=false;
-
-   recoverRobot();
+   $("deviceTitle").textContent="Correct! 🎉";
+   $("deviceType").textContent=`${devices[completedIndex].name} — ${devices[completedIndex].faType}`;
+   $("robotStatus").textContent="🤖 آفرین! جشن ۷ ثانیه‌ای";
+   $("distanceStatus").textContent="🎉 خوشحالی ربات";
+   $("emotion").textContent="🎉";
+   $("emotion").style.display="block";
+   showMessage("آفرین! نوع دستگاه را درست گفتی؛ ۱۰ امتیاز گرفتی. ربات خوشحالی می‌کند.","good");
+   playSound(laughSound);
+   setAnimation("Wave");
    updateUI();
-
-   showMessage(
-    `جشن تمام شد؛ ربات به سمت مرحله ${currentIndex+1} حرکت می‌کند.`,
-    "good"
-   );
+  
+   if(celebrationTimer)clearTimeout(celebrationTimer);
+  
+   celebrationTimer=setTimeout(()=>{
+    celebrationTimer=null;
+    $("emotion").style.display="none";
+  
+    if(answered.size===devices.length){
+     finishing=true;
+     autoMoving=true;
+     autoMoveToFinish=true;
+     locked=false;
+     waitingAnswer=false;
+     keys={};
+     $("deviceTitle").textContent="FINISH";
+     $("deviceType").textContent="ربات به سمت خط پایان حرکت می‌کند.";
+     $("distanceStatus").textContent="🏁 حرکت خودکار به خط پایان";
+     $("robotStatus").textContent="🏁 در حال حرکت";
+     recoverRobot();
+     showMessage("همه دستگاه‌ها کامل شد؛ ربات خودش به سمت خط پایان می‌رود.","good");
+    }else{
+     currentIndex++;
+     locked=false;
+     waitingAnswer=false;
+     finishing=false;
+     roundCorrectName=false;
+     roundCorrectType=false;
+     keys={};
+     $("micButton").disabled=true;
+     $("micButton").classList.remove("ready");
+     $("nextButton").disabled=true;
+     $("deviceTitle").textContent=devices[currentIndex].name;
+     $("deviceType").textContent="ربات به سمت دستگاه بعدی حرکت می‌کند.";
+     $("distanceStatus").textContent=`مرحله ${toFa(currentIndex+1)}`;
+     $("robotStatus").textContent="🤖 حرکت خودکار";
+     autoMoving=true;
+     autoMoveToFinish=false;
+     recoverRobot();
+     updateUI();
+     showMessage(`جشن تمام شد؛ ربات به سمت مرحله ${currentIndex+1} حرکت می‌کند.`,"good");
+    }
+   },2000);
   }
- },2000);
-}
 
-function moveRobotAutomatically(delta){
+  function moveRobotAutomatically(delta){
  if(!robot||!autoMoving)return;
 
  const target=autoMoveToFinish
@@ -1790,22 +1617,18 @@ function moveRobotAutomatically(delta){
    robot.position.z=target.z;
    activateDevice(currentIndex);
   }
-
   return;
  }
 
  const step=Math.min(distance,4.5*delta);
-
  robot.position.x+=(dx/distance)*step;
  robot.position.z+=(dz/distance)*step;
  robot.rotation.y=Math.atan2(dx,dz);
-
  setAnimation("Walking");
 }
 
 function fallRobot(){
  if(!robot)return;
-
  falling=true;
  fallStarted=performance.now();
  setAnimation("Death");
@@ -1813,12 +1636,10 @@ function fallRobot(){
 
 function recoverRobot(){
  if(!robot)return;
-
  falling=false;
  robot.rotation.x=0;
  robot.rotation.z=0;
  robot.position.y=0;
-
  $("emotion").style.display="none";
  setAnimation("Idle");
 }
@@ -1826,19 +1647,15 @@ function recoverRobot(){
 // آتش‌بازی جشن قهرمانی
 const fireworksCanvas=$("fireworks");
 const fx=fireworksCanvas.getContext("2d");
-
 let particles=[];
 let fireworksRunning=false;
 
 function resizeFireworks(){
  const ratio=Math.min(window.devicePixelRatio||1,2);
-
  fireworksCanvas.width=innerWidth*ratio;
  fireworksCanvas.height=innerHeight*ratio;
-
  fireworksCanvas.style.width=innerWidth+"px";
  fireworksCanvas.style.height=innerHeight+"px";
-
  fx.setTransform(ratio,0,0,ratio,0,0);
 }
 
@@ -1847,11 +1664,7 @@ resizeFireworks();
 
 function celebrate(){
  particles=[];
-
- const colors=[
-  "#49e4ff","#9b7bff","#ffd166",
-  "#42e6a4","#ff6b9d","#ffffff"
- ];
+ const colors=["#49e4ff","#9b7bff","#ffd166","#42e6a4","#ff6b9d","#ffffff"];
 
  for(let burst=0;burst<5;burst++){
   const cx=innerWidth*(.15+Math.random()*.7);
@@ -1860,10 +1673,8 @@ function celebrate(){
   for(let i=0;i<45;i++){
    const angle=Math.PI*2*i/45;
    const speed=1.5+Math.random()*5;
-
    particles.push({
-    x:cx,
-    y:cy,
+    x:cx,y:cy,
     vx:Math.cos(angle)*speed,
     vy:Math.sin(angle)*speed,
     life:60+Math.random()*40,
@@ -1872,7 +1683,6 @@ function celebrate(){
    });
   }
  }
-
  fireworksRunning=true;
 }
 
@@ -1886,7 +1696,6 @@ function drawFireworks(){
    p.vy+=.045;
    p.vx*=.99;
    p.life--;
-
    fx.globalAlpha=Math.max(0,p.life/80);
    fx.fillStyle=p.color;
    fx.beginPath();
@@ -1895,67 +1704,119 @@ function drawFireworks(){
   });
 
   particles=particles.filter(p=>p.life>0);
-
-  if(!particles.length){
-   fireworksRunning=false;
-  }
+  if(!particles.length)fireworksRunning=false;
  }
 
  fx.globalAlpha=1;
  requestAnimationFrame(drawFireworks);
 }
-
 drawFireworks();
 
 function findDanceAnimation(){
  const names=Object.keys(animations);
-
  return names.find(name=>/dance|samba|gangnam/i.test(name))
   ||names.find(name=>/wave/i.test(name))
   ||names.find(name=>/idle/i.test(name))
   ||names[0];
 }
 
+/* =========================================
+   ثبت زمان، ذخیره رکورد و نمایش جدول
+========================================= */
+
+function normalizeStudentName(name){
+ return normalizeText(name).replace(/\s+/g," ").trim();
+}
+
 function formatRecordTime(milliseconds){
- const totalCentiseconds = Math.floor(milliseconds / 10);
- const minutes = Math.floor(totalCentiseconds / 6000);
- const seconds = Math.floor((totalCentiseconds % 6000) / 100);
- const centiseconds = totalCentiseconds % 100;
- return String(minutes).padStart(2,"0") + ":" +
-  String(seconds).padStart(2,"0") + "." +
+ const totalCentiseconds=Math.floor(milliseconds/10);
+ const minutes=Math.floor(totalCentiseconds/6000);
+ const seconds=Math.floor((totalCentiseconds%6000)/100);
+ const centiseconds=totalCentiseconds%100;
+
+ return String(minutes).padStart(2,"0")+":"+
+  String(seconds).padStart(2,"0")+"."+
   String(centiseconds).padStart(2,"0");
 }
 
 async function saveAndShowLeaderboard(){
- const statusElement = $("recordStatus");
- const leaderboardBody = $("leaderboardBody");
- if(recordSaved) return;
- recordSaved = true;
+ const statusElement=$("recordStatus");
+ const leaderboardBody=$("leaderboardBody");
 
- if(!studentFullName || !finalElapsedMs){
-  if(statusElement) statusElement.textContent = "اطلاعات رکورد کامل نیست.";
+ if(recordSaved)return;
+
+ if(!studentFullName||!finalElapsedMs||!studentPhotoData){
+  if(statusElement){
+   statusElement.textContent="نام دانش‌آموز، عکس یا زمان بازی کامل نیست.";
+  }
   return;
  }
 
- try{
-  const {data:savedRecord,error:insertError} = await supabaseClient
-   .from("alavi_robot_records")
-   .insert({student_name:studentFullName,elapsed_ms:finalElapsedMs,score:score,photo_data:studentPhotoData})
-   .select("id, student_name, elapsed_ms, score, created_at, photo_data")
-   .single();
-  if(insertError) throw insertError;
+ recordSaved=true;
 
-  const {data:records,error:readError} = await supabaseClient
+ try{
+  // خواندن رکوردهای قبلی
+  const {data:oldRecords,error:oldReadError}=await supabaseClient
    .from("alavi_robot_records")
-   .select("id, student_name, elapsed_ms, score, created_at, photo_data")
+   .select("id,student_name,elapsed_ms,score,created_at,photo_data");
+
+  if(oldReadError)throw oldReadError;
+
+  // یافتن رکوردهای قبلی با نام کامل یکسان
+  const studentKey=normalizeStudentName(studentFullName);
+
+  const previousRecords=(oldRecords||[]).filter(record=>
+   normalizeStudentName(record.student_name)===studentKey
+  );
+
+  // ابتدا رکورد جدید را ذخیره می‌کنیم
+  const {data:savedRecord,error:insertError}=await supabaseClient
+   .from("alavi_robot_records")
+   .insert({
+    student_name:studentFullName,
+    elapsed_ms:finalElapsedMs,
+    score:score,
+    photo_data:studentPhotoData
+   })
+   .select("id,student_name,elapsed_ms,score,created_at,photo_data")
+   .single();
+
+  if(insertError)throw insertError;
+
+  // حذف رکوردهای قبلی همین دانش‌آموز
+  const oldIds=previousRecords
+   .map(record=>record.id)
+   .filter(id=>id!==savedRecord.id);
+
+  if(oldIds.length){
+   const {error:deleteError}=await supabaseClient
+    .from("alavi_robot_records")
+    .delete()
+    .in("id",oldIds);
+
+   if(deleteError){
+    console.error("Old record cleanup error:",deleteError);
+    if(statusElement){
+     statusElement.textContent=
+      "رکورد جدید ثبت شد؛ اما حذف رکوردهای قبلی انجام نشد. مجوز DELETE جدول را بررسی کن.";
+    }
+   }
+  }
+
+  // خواندن جدول پس از ثبت رکورد جدید
+  const {data:records,error:readError}=await supabaseClient
+   .from("alavi_robot_records")
+   .select("id,student_name,elapsed_ms,score,created_at,photo_data")
    .order("elapsed_ms",{ascending:true})
    .order("created_at",{ascending:true})
-   .limit(50);
-  if(readError) throw readError;
+   .limit(500);
+
+  if(readError)throw readError;
 
   if(leaderboardBody){
    leaderboardBody.replaceChildren();
-   if(!records || records.length===0){
+
+   if(!records||records.length===0){
     const row=document.createElement("tr");
     const cell=document.createElement("td");
     cell.colSpan=6;
@@ -1965,10 +1826,16 @@ async function saveAndShowLeaderboard(){
    }else{
     records.forEach((record,index)=>{
      const row=document.createElement("tr");
-     if(record.id===savedRecord.id) row.classList.add("current-record");
+
+     if(record.id===savedRecord.id){
+      row.classList.add("current-record");
+     }
+
      const rankCell=document.createElement("td");
-     rankCell.textContent=String(index+1);
+     rankCell.textContent=toFa(index+1);
+
      const photoCell=document.createElement("td");
+
      if(record.photo_data){
       const photo=document.createElement("img");
       photo.className="record-photo";
@@ -1976,54 +1843,89 @@ async function saveAndShowLeaderboard(){
       photo.alt="عکس "+record.student_name;
       photo.loading="lazy";
       photoCell.appendChild(photo);
-     }else photoCell.textContent="—";
+     }else{
+      photoCell.textContent="—";
+     }
+
      const nameCell=document.createElement("td");
      nameCell.textContent=record.student_name;
+
      const dateCell=document.createElement("td");
      dateCell.className="record-date";
+
      const dateValue=new Date(record.created_at);
-     dateCell.textContent=dateValue.toLocaleDateString("fa-IR")+" "+dateValue.toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
+     dateCell.textContent=
+      dateValue.toLocaleDateString("fa-IR")+" "+
+      dateValue.toLocaleTimeString("fa-IR",{
+       hour:"2-digit",
+       minute:"2-digit",
+       second:"2-digit"
+      });
+
      const timeCell=document.createElement("td");
      timeCell.textContent=formatRecordTime(record.elapsed_ms);
+
      const scoreCell=document.createElement("td");
-     scoreCell.textContent=String(record.score);
-     row.append(rankCell,photoCell,nameCell,dateCell,timeCell,scoreCell);
+     scoreCell.textContent=toFa(record.score);
+
+     row.append(
+      rankCell,
+      photoCell,
+      nameCell,
+      dateCell,
+      timeCell,
+      scoreCell
+     );
+
      leaderboardBody.appendChild(row);
     });
    }
   }
 
+  // محاسبه رتبه بر اساس زمان
   const {count:fasterCount,error:fasterError}=await supabaseClient
-   .from("alavi_robot_records").select("id",{count:"exact",head:true})
+   .from("alavi_robot_records")
+   .select("id",{count:"exact",head:true})
    .lt("elapsed_ms",savedRecord.elapsed_ms);
-  if(fasterError) throw fasterError;
+
+  if(fasterError)throw fasterError;
 
   const {count:earlierTieCount,error:tieError}=await supabaseClient
-   .from("alavi_robot_records").select("id",{count:"exact",head:true})
+   .from("alavi_robot_records")
+   .select("id",{count:"exact",head:true})
    .eq("elapsed_ms",savedRecord.elapsed_ms)
    .lt("created_at",savedRecord.created_at);
-  if(tieError) throw tieError;
+
+  if(tieError)throw tieError;
 
   const rank=1+(fasterCount||0)+(earlierTieCount||0);
-  if(statusElement){
-   statusElement.textContent="دانش‌آموز: "+studentFullName+
-    " | زمان: "+formatRecordTime(finalElapsedMs)+" | رتبه: "+rank;
-  }
-}catch(error){
-  console.error("Supabase record error:", error);
 
   if(statusElement){
-    statusElement.textContent =
-      "خطای ثبت رکورد: " + (error.message || String(error));
+   statusElement.textContent=
+    "دانش‌آموز: "+studentFullName+
+    " | زمان: "+formatRecordTime(finalElapsedMs)+
+    " | رتبه: "+toFa(rank);
   }
 
-  recordSaved = false;
+ }catch(error){
+  console.error("Supabase record error:",error);
+
+  if(statusElement){
+   statusElement.textContent="خطای ثبت رکورد: "+(error.message||String(error));
+  }
+
+  recordSaved=false;
+ }
 }
-}
+
+/* =========================================
+   پایان بازی و ذخیره رکورد
+========================================= */
 
 function winGame(){
  if(gameWon)return;
- if(gameStartTime>0 && !recordSaved){
+
+ if(gameStartTime>0&&!recordSaved){
   finalElapsedMs=Math.max(1,Math.floor(performance.now()-gameStartTime));
  }
 
@@ -2041,19 +1943,26 @@ function winGame(){
  $("startOverlay").style.display="none";
  $("victoryOverlay").style.display="flex";
 
- $("finalScore").textContent =
-  "امتیاز نهایی: " + toFa(score) +
-  " | زمان: " + formatRecordTime(finalElapsedMs);
- $("recordStatus").textContent = "در حال ذخیره رکورد و دریافت رتبه...";
- const leaderboardBody = $("leaderboardBody");
- leaderboardBody.replaceChildren();
- const loadingRow = document.createElement("tr");
- const loadingCell = document.createElement("td");
- loadingCell.colSpan = 4;
- loadingCell.textContent = "در حال دریافت رکوردها...";
- loadingRow.appendChild(loadingCell);
- leaderboardBody.appendChild(loadingRow);
- saveAndShowLeaderboard();
+ $("finalScore").textContent=
+  "امتیاز نهایی: "+toFa(score)+
+  " | زمان: "+formatRecordTime(finalElapsedMs);
+
+ $("recordStatus").textContent="در حال ذخیره رکورد و دریافت رتبه...";
+
+ const leaderboardBody=$("leaderboardBody");
+
+ if(leaderboardBody){
+  leaderboardBody.replaceChildren();
+
+  const loadingRow=document.createElement("tr");
+  const loadingCell=document.createElement("td");
+
+  loadingCell.colSpan=6;
+  loadingCell.textContent="در حال ذخیره و دریافت رکوردها...";
+
+  loadingRow.appendChild(loadingCell);
+  leaderboardBody.appendChild(loadingRow);
+ }
 
  $("robotStatus").textContent="🏆 قهرمان بازی!";
  $("distanceStatus").textContent="🎉 خط پایان";
@@ -2069,6 +1978,8 @@ function winGame(){
 
  const dance=findDanceAnimation();
  if(dance)setAnimation(dance);
+
+ saveAndShowLeaderboard();
 }
 
 function goToNextDevice(){
@@ -2094,21 +2005,14 @@ function goToNextDevice(){
   locked=false;
   waitingAnswer=false;
   keys={};
-
   $("nextButton").disabled=true;
   $("micButton").disabled=true;
-
   $("deviceTitle").textContent="FINISH";
   $("deviceType").textContent="به سمت خط پایان حرکت کن.";
   $("distanceStatus").textContent="خط پایان در پیش است";
   $("robotStatus").textContent="🏁 حرکت کن!";
-
   recoverRobot();
-
-  showMessage(
-   "مسیر خط پایان باز شد. کلید بالا را نگه دار.",
-   "good"
-  );
+  showMessage("مسیر خط پایان باز شد. کلید بالا را نگه دار.","good");
   return;
  }
 
@@ -2116,7 +2020,6 @@ function goToNextDevice(){
  locked=false;
  waitingAnswer=false;
  finishing=false;
-
  roundCorrectName=false;
  roundCorrectType=false;
  keys={};
@@ -2126,17 +2029,12 @@ function goToNextDevice(){
  $("micButton").classList.remove("ready");
  $("nextButton").disabled=true;
  $("nextButton").textContent="مرحله بعد ←";
-
  $("deviceTitle").textContent=devices[currentIndex].name;
  $("deviceType").textContent="به حلقه سبز مرحله بعد نزدیک شو.";
  $("distanceStatus").textContent=`مرحله ${toFa(currentIndex+1)}`;
  $("robotStatus").textContent="🤖 آماده حرکت";
 
- showMessage(
-  `مرحله ${currentIndex+1} فعال شد. حلقه سبز را پیدا کن.`,
-  "info"
- );
-
+ showMessage(`مرحله ${currentIndex+1} فعال شد. حلقه سبز را پیدا کن.`,"info");
  recoverRobot();
  updateUI();
 }
@@ -2151,15 +2049,12 @@ function resetWorld(){
 
  autoMoving=false;
  autoMoveToFinish=false;
-
  stopListening();
  stopSounds();
  backgroundMusic.pause();
  backgroundMusic.currentTime=0;
 
- if("speechSynthesis" in window){
-  speechSynthesis.cancel();
- }
+ if("speechSynthesis" in window)speechSynthesis.cancel();
 
  currentIndex=0;
  score=0;
@@ -2170,15 +2065,14 @@ function resetWorld(){
  studentFirstName="";
  studentLastName="";
  studentFullName="";
+ studentPhotoData="";
  waitingAnswer=false;
  locked=false;
  finishing=false;
  gameWon=false;
  falling=false;
-
  roundCorrectName=false;
  roundCorrectType=false;
-
  answered.clear();
  keys={};
  particles=[];
@@ -2187,17 +2081,14 @@ function resetWorld(){
  $("victoryOverlay").style.display="none";
  $("startOverlay").style.display="flex";
  $("emotion").style.display="none";
-
  $("micButton").disabled=true;
  $("micButton").classList.remove("ready");
  $("nextButton").disabled=true;
  $("nextButton").textContent="مرحله بعد ←";
  $("micButton").textContent="🎙️ پاسخ صوتی";
-
  $("deviceTitle").textContent="آماده شروع";
  $("deviceType").textContent="ابتدا بازی را شروع کن.";
  $("answerText").textContent="پاسخ تو اینجا نمایش داده می‌شود.";
-
  $("robotStatus").textContent="🤖 آماده شروع";
  $("distanceStatus").textContent="دستگاه اول را پیدا کن";
 
@@ -2208,19 +2099,27 @@ function resetWorld(){
  }
 
  updateUI();
-
- showMessage(
-  "برای شروع دوباره، دکمه شروع بازی را بزن.",
-  "info"
- );
+ showMessage("برای شروع دوباره، دکمه شروع بازی را بزن.","info");
 }
 
 // وب‌کم و عکس دانش‌آموز
 $("enableCameraButton").addEventListener("click",async()=>{
  const status=$("cameraStatus");
+
  try{
-  if(!navigator.mediaDevices?.getUserMedia) throw new Error("مرورگر از وب‌کم پشتیبانی نمی‌کند.");
-  cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});
+  if(!navigator.mediaDevices?.getUserMedia){
+   throw new Error("مرورگر از وب‌کم پشتیبانی نمی‌کند.");
+  }
+
+  cameraStream=await navigator.mediaDevices.getUserMedia({
+   video:{
+    facingMode:"user",
+    width:{ideal:640},
+    height:{ideal:480}
+   },
+   audio:false
+  });
+
   $("cameraPreview").srcObject=cameraStream;
   $("capturePhotoButton").disabled=false;
   status.textContent="وب‌کم روشن است؛ برای ثبت عکس دکمه گرفتن عکس را بزن.";
@@ -2231,12 +2130,21 @@ $("enableCameraButton").addEventListener("click",async()=>{
 });
 
 $("capturePhotoButton").addEventListener("click",()=>{
- const video=$("cameraPreview"),canvas=$("photoCanvas"),status=$("cameraStatus");
- if(!cameraStream||!video.videoWidth){status.textContent="ابتدا وب‌کم را روشن کن و چند لحظه صبر کن.";return;}
- canvas.width=320;canvas.height=240;
+ const video=$("cameraPreview");
+ const canvas=$("photoCanvas");
+ const status=$("cameraStatus");
+
+ if(!cameraStream||!video.videoWidth){
+  status.textContent="ابتدا وب‌کم را روشن کن و چند لحظه صبر کن.";
+  return;
+ }
+
+ canvas.width=320;
+ canvas.height=240;
  const ctx=canvas.getContext("2d");
  ctx.drawImage(video,0,0,canvas.width,canvas.height);
- studentPhotoData=canvas.toDataURL("image/jpeg",0.62);
+
+ studentPhotoData=canvas.toDataURL("image/jpeg",.62);
  $("capturedPhoto").src=studentPhotoData;
  $("capturedPhoto").style.display="block";
  status.textContent="عکس ثبت شد. حالا می‌توانی بازی را شروع کنی.";
@@ -2251,10 +2159,7 @@ $("playAgainButton").addEventListener("click",resetWorld);
 
 $("micButton").addEventListener("click",()=>{
  if(!waitingAnswer){
-  showMessage(
-   "ابتدا به حلقه سبز مرحله فعال نزدیک شو.",
-   "info"
-  );
+  showMessage("ابتدا به حلقه سبز مرحله فعال نزدیک شو.","info");
   return;
  }
 
@@ -2269,9 +2174,7 @@ $("micButton").addEventListener("click",()=>{
 
 // حرکت دستی ربات
 function updateMovement(delta){
- if(!robot||!started||locked||waitingAnswer||falling||gameWon){
-  return;
- }
+ if(!robot||!started||locked||waitingAnswer||falling||gameWon)return;
 
  let dx=0;
  let dz=0;
@@ -2289,10 +2192,8 @@ function updateMovement(delta){
   dz/=length;
 
   const speed=5.2;
-
   const nextX=robot.position.x+dx*speed*delta;
   const nextZ=robot.position.z+dz*speed*delta;
-
   let allowedX=THREE.MathUtils.clamp(nextX,-5.1,5.1);
   let allowedZ=THREE.MathUtils.clamp(nextZ,-190,9);
 
@@ -2304,26 +2205,15 @@ function updateMovement(delta){
     const targetX=target.position.x;
     const gateZ=targetZ+1.5;
 
-    if(
-     robot.position.z>gateZ &&
-     nextZ<gateZ &&
-     Math.abs(robot.position.x-targetX)>1.65
-    ){
+    if(robot.position.z>gateZ&&nextZ<gateZ&&Math.abs(robot.position.x-targetX)>1.65){
      allowedZ=gateZ;
     }
 
-    if(
-     robot.position.z<targetZ-1.5 &&
-     nextZ>targetZ-1.5 &&
-     Math.abs(robot.position.x-targetX)>1.65
-    ){
+    if(robot.position.z<targetZ-1.5&&nextZ>targetZ-1.5&&Math.abs(robot.position.x-targetX)>1.65){
      allowedZ=targetZ-1.5;
     }
 
-    const nextPosition=new THREE.Vector3(
-     allowedX,0,allowedZ
-    );
-
+    const nextPosition=new THREE.Vector3(allowedX,0,allowedZ);
     const distance=nextPosition.distanceTo(target.position);
 
     if(distance<1.65){
@@ -2331,10 +2221,7 @@ function updateMovement(delta){
      allowedZ=target.position.z;
     }
 
-    if(
-     Math.abs(allowedZ-targetZ)<1.65 &&
-     Math.abs(allowedX-targetX)>1.65
-    ){
+    if(Math.abs(allowedZ-targetZ)<1.65&&Math.abs(allowedX-targetX)>1.65){
      allowedZ=robot.position.z;
     }
    }
@@ -2349,23 +2236,19 @@ function updateMovement(delta){
   if(dz>.1)robot.rotation.y=0;
 
   setAnimation("Walking");
-
  }else{
   setAnimation("Idle");
  }
 
  if(!finishing){
   const nearby=findNearbyDevice();
-
   if(nearby===currentIndex&&nearby>=0){
    keys={};
    activateDevice(nearby);
   }
  }
 
- if(finishing&&robot.position.z<=finishZ+.5){
-  winGame();
- }
+ if(finishing&&robot.position.z<=finishZ+.5)winGame();
 }
 
 // دوربین تعقیب‌کننده ربات
@@ -2384,11 +2267,7 @@ function updateCamera(delta){
   robot.position.z+9
  );
 
- camera.position.lerp(
-  desired,
-  Math.min(1,delta*4)
- );
-
+ camera.position.lerp(desired,Math.min(1,delta*4));
  camera.lookAt(target);
 }
 
@@ -2399,17 +2278,12 @@ function animate(time){
  const delta=Math.min((time-lastTime)/1000||0,.05);
  lastTime=time;
 
- if(mixer){
-  mixer.update(delta);
- }
+ if(mixer)mixer.update(delta);
 
  if(falling&&robot){
   const elapsed=(time-fallStarted)/1000;
-
   if(elapsed<.7){
-   robot.rotation.z=THREE.MathUtils.lerp(
-    0,Math.PI/2,elapsed/.7
-   );
+   robot.rotation.z=THREE.MathUtils.lerp(0,Math.PI/2,elapsed/.7);
   }else{
    robot.rotation.z=Math.PI/2;
   }
@@ -2422,11 +2296,8 @@ function animate(time){
  }
 
  if(started&&!gameWon&&!falling){
-  if(autoMoving){
-   moveRobotAutomatically(delta);
-  }else{
-   updateMovement(delta);
-  }
+  if(autoMoving)moveRobotAutomatically(delta);
+  else updateMovement(delta);
  }
 
  updateStageLights(time);
@@ -2444,21 +2315,14 @@ function resize(){
 
  camera.aspect=width/height;
  camera.updateProjectionMatrix();
-
  renderer.setSize(width,height,false);
 }
 
 window.addEventListener("resize",resize);
-
-window.addEventListener("orientationchange",()=>{
- requestAnimationFrame(resize);
-});
+window.addEventListener("orientationchange",()=>requestAnimationFrame(resize));
 
 if("ResizeObserver" in window){
- const sceneObserver=new ResizeObserver(()=>{
-  resize();
- });
-
+ const sceneObserver=new ResizeObserver(()=>resize());
  sceneObserver.observe($("scene"));
 }
 
@@ -2467,7 +2331,6 @@ resize();
 // بارگذاری مدل ربات
 loader.load(
  "RobotExpressive.glb",
-
  gltf=>{
   robot=gltf.scene;
   robot.scale.setScalar(.75);
@@ -2481,7 +2344,6 @@ loader.load(
   });
 
   gameScene.add(robot);
-
   mixer=new THREE.AnimationMixer(robot);
 
   gltf.animations.forEach(clip=>{
@@ -2489,44 +2351,30 @@ loader.load(
   });
 
   setAnimation("Idle");
-
   $("robotStatus").textContent="🤖 ربات آماده حرکت است";
-
-  showMessage(
-   "ربات آماده است. برای شروع بازی دکمه شروع را بزن.",
-   "info"
-  );
+  showMessage("ربات آماده است. برای شروع بازی دکمه شروع را بزن.","info");
  },
-
  undefined,
-
  error=>{
   console.error("Robot load error:",error);
-
   $("robotStatus").textContent="مدل ربات بارگذاری نشد";
-
-  showMessage(
-   "فایل RobotExpressive.glb را کنار index.html قرار بده و صفحه را دوباره باز کن.",
-   "bad"
-  );
+  showMessage("فایل RobotExpressive.glb را کنار index.html قرار بده و صفحه را دوباره باز کن.","bad");
  }
 );
 
 buildList();
 updateUI();
-
 requestAnimationFrame(animate);
 
 // توقف شنود هنگام خروج از صفحه
 document.addEventListener("visibilitychange",()=>{
  if(document.hidden){
   keys={};
-
-  if(isListening){
-   stopListening();
-  }
+  if(isListening)stopListening();
  }
 });
 </script>
+</body>
+</html>
 </body>
 </html>
