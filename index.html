@@ -651,7 +651,14 @@ video {
 #recordStatus{color:#8affce!important;overflow-wrap:anywhere}
 .leaderboard-wrap{width:100%;margin:14px auto 0;overflow-x:auto;text-align:right}
 .leaderboard-wrap h3{margin:12px 0;color:#ffdf70;font-size:15px}
-#leaderboardTable{width:100%;min-width:310px;border-collapse:collapse;color:#f5f8ff;font-size:12px}
+#leaderboardTable{width:100%;min-width:520px;border-collapse:collapse;color:#f5f8ff;font-size:12px}
+.student-camera{display:flex;flex-direction:column;align-items:center;gap:8px;margin:10px auto}
+#cameraPreview{width:180px;height:135px;object-fit:cover;border:2px solid #43d9ff;border-radius:14px;background:#07101e}
+#capturedPhoto{width:90px;height:90px;object-fit:cover;border:2px solid #8affce;border-radius:50%;display:none}
+.camera-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.camera-actions button{font-size:12px;padding:9px 12px}
+.record-photo{width:42px;height:42px;object-fit:cover;border-radius:50%;border:1px solid #65dfff}
+.record-date{white-space:nowrap;font-size:11px}
 #leaderboardTable th,#leaderboardTable td{padding:8px 5px;border-bottom:1px solid #365076;text-align:center}
 #leaderboardTable th{background:#203a5c;color:#d9f7ff}
 #leaderboardTable tr.current-record{background:#14513c;color:#fff;font-weight:900}
@@ -729,6 +736,16 @@ video {
           <input id="studentFirstName" type="text" maxlength="50" autocomplete="given-name" placeholder="مثلاً علی" required>
           <label for="studentLastName">نام خانوادگی</label>
           <input id="studentLastName" type="text" maxlength="50" autocomplete="family-name" placeholder="مثلاً نیکزاد" required>
+          <div class="student-camera">
+            <video id="cameraPreview" autoplay playsinline muted></video>
+            <canvas id="photoCanvas" width="320" height="240" hidden></canvas>
+            <img id="capturedPhoto" alt="عکس ثبت‌شده دانش‌آموز">
+            <div class="camera-actions">
+              <button id="enableCameraButton" type="button" class="secondary">📷 روشن کردن وب‌کم</button>
+              <button id="capturePhotoButton" type="button" class="secondary" disabled>🤳 گرفتن عکس</button>
+            </div>
+            <small id="cameraStatus">برای ثبت عکس، اجازه استفاده از وب‌کم را بده.</small>
+          </div>
           <p id="registrationMessage" role="alert"></p>
         </div>
         <button id="startButton" class="primary">🚀 شروع بازی</button>
@@ -745,7 +762,7 @@ video {
         <div class="leaderboard-wrap">
           <h3>🏆 جدول رکوردهای دانش‌آموزان</h3>
           <table id="leaderboardTable">
-            <thead><tr><th>رتبه</th><th>نام دانش‌آموز</th><th>زمان</th><th>امتیاز</th></tr></thead>
+            <thead><tr><th>رتبه</th><th>عکس</th><th>نام دانش‌آموز</th><th>تاریخ و ساعت</th><th>رکورد بازی</th><th>امتیاز</th></tr></thead>
             <tbody id="leaderboardBody"><tr><td colspan="4">در حال دریافت رکوردها...</td></tr></tbody>
           </table>
         </div>
@@ -801,8 +818,8 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const $ = id => document.getElementById(id);
 
 /* تنظیم اتصال Supabase: مقادیر را با اطلاعات پروژه خود جایگزین کن */
-const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
-const SUPABASE_KEY = "YOUR_PUBLIC_PUBLISHABLE_KEY";
+const SUPABASE_URL = "https://ghnpiijihybuhfetnxjp.supabase.co";
+const SUPABASE_KEY = "sb_publishable_SEGca8-w1pAO3_TQgMd-qA_vOvkj6jq";
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const devices = [
@@ -855,6 +872,8 @@ let studentFullName = "";
 let gameStartTime = 0;
 let finalElapsedMs = 0;
 let recordSaved = false;
+let cameraStream = null;
+let studentPhotoData = "";
 
 const gameScene = new THREE.Scene();
 gameScene.background = new THREE.Color(0x09162b);
@@ -1202,12 +1221,17 @@ function startGame(){
   return;
  }
 
+ if(!studentPhotoData){
+  if(registrationMessage) registrationMessage.textContent = "لطفاً ابتدا وب‌کم را روشن کن و عکس خودت را بگیر.";
+  return;
+ }
+
  if(!robot){
   showMessage("مدل RobotExpressive.glb هنوز بارگذاری نشده است.","bad");
   return;
  }
 
- studentFullName = `${studentFirstName} ${studentLastName}`.replace(/\\s+/g," ").trim();
+ studentFullName = `${studentFirstName} ${studentLastName}`.replace(/\s+/g," ").trim();
  if(registrationMessage) registrationMessage.textContent = "";
 
  started = true;
@@ -1909,14 +1933,14 @@ async function saveAndShowLeaderboard(){
  try{
   const {data:savedRecord,error:insertError} = await supabaseClient
    .from("alavi_robot_records")
-   .insert({student_name:studentFullName,elapsed_ms:finalElapsedMs,score:score})
-   .select("id, student_name, elapsed_ms, score, created_at")
+   .insert({student_name:studentFullName,elapsed_ms:finalElapsedMs,score:score,photo_data:studentPhotoData})
+   .select("id, student_name, elapsed_ms, score, created_at, photo_data")
    .single();
   if(insertError) throw insertError;
 
   const {data:records,error:readError} = await supabaseClient
    .from("alavi_robot_records")
-   .select("id, student_name, elapsed_ms, score, created_at")
+   .select("id, student_name, elapsed_ms, score, created_at, photo_data")
    .order("elapsed_ms",{ascending:true})
    .order("created_at",{ascending:true})
    .limit(50);
@@ -1927,7 +1951,7 @@ async function saveAndShowLeaderboard(){
    if(!records || records.length===0){
     const row=document.createElement("tr");
     const cell=document.createElement("td");
-    cell.colSpan=4;
+    cell.colSpan=6;
     cell.textContent="هنوز رکوردی ثبت نشده است.";
     row.appendChild(cell);
     leaderboardBody.appendChild(row);
@@ -1937,13 +1961,26 @@ async function saveAndShowLeaderboard(){
      if(record.id===savedRecord.id) row.classList.add("current-record");
      const rankCell=document.createElement("td");
      rankCell.textContent=String(index+1);
+     const photoCell=document.createElement("td");
+     if(record.photo_data){
+      const photo=document.createElement("img");
+      photo.className="record-photo";
+      photo.src=record.photo_data;
+      photo.alt="عکس "+record.student_name;
+      photo.loading="lazy";
+      photoCell.appendChild(photo);
+     }else photoCell.textContent="—";
      const nameCell=document.createElement("td");
      nameCell.textContent=record.student_name;
+     const dateCell=document.createElement("td");
+     dateCell.className="record-date";
+     const dateValue=new Date(record.created_at);
+     dateCell.textContent=dateValue.toLocaleDateString("fa-IR")+" "+dateValue.toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"});
      const timeCell=document.createElement("td");
      timeCell.textContent=formatRecordTime(record.elapsed_ms);
      const scoreCell=document.createElement("td");
      scoreCell.textContent=String(record.score);
-     row.append(rankCell,nameCell,timeCell,scoreCell);
+     row.append(rankCell,photoCell,nameCell,dateCell,timeCell,scoreCell);
      leaderboardBody.appendChild(row);
     });
    }
@@ -2166,6 +2203,34 @@ function resetWorld(){
   "info"
  );
 }
+
+// وب‌کم و عکس دانش‌آموز
+$("enableCameraButton").addEventListener("click",async()=>{
+ const status=$("cameraStatus");
+ try{
+  if(!navigator.mediaDevices?.getUserMedia) throw new Error("مرورگر از وب‌کم پشتیبانی نمی‌کند.");
+  cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:640},height:{ideal:480}},audio:false});
+  $("cameraPreview").srcObject=cameraStream;
+  $("capturePhotoButton").disabled=false;
+  status.textContent="وب‌کم روشن است؛ برای ثبت عکس دکمه گرفتن عکس را بزن.";
+ }catch(error){
+  status.textContent="دسترسی به وب‌کم انجام نشد. اجازه دوربین را در مرورگر فعال کن و صفحه را با HTTPS باز کن.";
+  console.error("Camera error:",error);
+ }
+});
+
+$("capturePhotoButton").addEventListener("click",()=>{
+ const video=$("cameraPreview"),canvas=$("photoCanvas"),status=$("cameraStatus");
+ if(!cameraStream||!video.videoWidth){status.textContent="ابتدا وب‌کم را روشن کن و چند لحظه صبر کن.";return;}
+ canvas.width=320;canvas.height=240;
+ const ctx=canvas.getContext("2d");
+ ctx.drawImage(video,0,0,canvas.width,canvas.height);
+ studentPhotoData=canvas.toDataURL("image/jpeg",0.62);
+ $("capturedPhoto").src=studentPhotoData;
+ $("capturedPhoto").style.display="block";
+ status.textContent="عکس ثبت شد. حالا می‌توانی بازی را شروع کنی.";
+ $("registrationMessage").textContent="";
+});
 
 // دکمه‌های بازی
 $("startButton").addEventListener("click",startGame);
