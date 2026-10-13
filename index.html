@@ -641,6 +641,22 @@ video {
     transition-duration: .01ms !important;
   }
 }
+
+/* ثبت‌نام دانش‌آموز و جدول رکوردها */
+.student-registration{width:100%;max-width:360px;margin:16px auto;display:flex;flex-direction:column;gap:8px;text-align:right}
+.student-registration label{font-weight:800;color:#e8f5ff}
+.student-registration input{width:100%;min-height:46px;padding:11px 13px;border:1px solid #5276a4;border-radius:12px;background:#09172c;color:#fff;font:inherit;font-size:15px}
+.student-registration input:focus{outline:2px solid #43d9ff;outline-offset:1px}
+#registrationMessage{min-height:20px;margin:0;color:#ffadbc;font-size:12px}
+#recordStatus{color:#8affce!important;overflow-wrap:anywhere}
+.leaderboard-wrap{width:100%;margin:14px auto 0;overflow-x:auto;text-align:right}
+.leaderboard-wrap h3{margin:12px 0;color:#ffdf70;font-size:15px}
+#leaderboardTable{width:100%;min-width:310px;border-collapse:collapse;color:#f5f8ff;font-size:12px}
+#leaderboardTable th,#leaderboardTable td{padding:8px 5px;border-bottom:1px solid #365076;text-align:center}
+#leaderboardTable th{background:#203a5c;color:#d9f7ff}
+#leaderboardTable tr.current-record{background:#14513c;color:#fff;font-weight:900}
+.victory-card{max-height:90%;overflow-y:auto}
+
 </style>
 </head>
 
@@ -708,6 +724,13 @@ video {
           بعد از پاسخ صحیح، ربات ۷ ثانیه خوشحالی می‌کند
           و خودش به مرحله بعد می‌رود.
         </p>
+        <div class="student-registration">
+          <label for="studentFirstName">نام دانش‌آموز</label>
+          <input id="studentFirstName" type="text" maxlength="50" autocomplete="given-name" placeholder="مثلاً علی" required>
+          <label for="studentLastName">نام خانوادگی</label>
+          <input id="studentLastName" type="text" maxlength="50" autocomplete="family-name" placeholder="مثلاً نیکزاد" required>
+          <p id="registrationMessage" role="alert"></p>
+        </div>
         <button id="startButton" class="primary">🚀 شروع بازی</button>
       </div>
     </div>
@@ -718,6 +741,14 @@ video {
         <h2 style="color:#ffdf70">🏆 قهرمان شدی!</h2>
         <p>تبریک! همه دستگاه‌ها را شناختی و به خط پایان رسیدی.</p>
         <div id="finalScore" style="font-weight:900;font-size:20px;color:#8affce"></div>
+        <p id="recordStatus">در حال ثبت رکورد...</p>
+        <div class="leaderboard-wrap">
+          <h3>🏆 جدول رکوردهای دانش‌آموزان</h3>
+          <table id="leaderboardTable">
+            <thead><tr><th>رتبه</th><th>نام دانش‌آموز</th><th>زمان</th><th>امتیاز</th></tr></thead>
+            <tbody id="leaderboardBody"><tr><td colspan="4">در حال دریافت رکوردها...</td></tr></tbody>
+          </table>
+        </div>
         <button id="playAgainButton" class="primary" style="margin-top:14px">🔄 بازی دوباره</button>
       </div>
     </div>
@@ -762,11 +793,17 @@ video {
 <canvas id="fireworks"></canvas>
 
 <script type="module">
-  
+ import { createClient } from
+    "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"; 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const $ = id => document.getElementById(id);
+
+/* تنظیم اتصال Supabase: مقادیر را با اطلاعات پروژه خود جایگزین کن */
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_KEY = "YOUR_PUBLIC_PUBLISHABLE_KEY";
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const devices = [
  {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board","کیبورد","صفحه کلید"],image:"keyboard.jpg"},
@@ -810,6 +847,14 @@ let fallStarted = 0;
 let roundCorrectName = false;
 let roundCorrectType = false;
 let collectedSpeech = "";
+
+/* ثبت‌نام و رکورد زمان */
+let studentFirstName = "";
+let studentLastName = "";
+let studentFullName = "";
+let gameStartTime = 0;
+let finalElapsedMs = 0;
+let recordSaved = false;
 
 const gameScene = new THREE.Scene();
 gameScene.background = new THREE.Color(0x09162b);
@@ -1143,28 +1188,48 @@ function stopListening(){
 }
 
 function startGame(){
+ const firstNameInput = $("studentFirstName");
+ const lastNameInput = $("studentLastName");
+ const registrationMessage = $("registrationMessage");
+
+ studentFirstName = firstNameInput?.value.trim() || "";
+ studentLastName = lastNameInput?.value.trim() || "";
+
+ if(!studentFirstName || !studentLastName){
+  if(registrationMessage) registrationMessage.textContent = "لطفاً نام و نام خانوادگی خود را وارد کن.";
+  if(!studentFirstName) firstNameInput?.focus();
+  else lastNameInput?.focus();
+  return;
+ }
+
  if(!robot){
   showMessage("مدل RobotExpressive.glb هنوز بارگذاری نشده است.","bad");
   return;
  }
 
- started=true;
+ studentFullName = `${studentFirstName} ${studentLastName}`.replace(/\\s+/g," ").trim();
+ if(registrationMessage) registrationMessage.textContent = "";
+
+ started = true;
+ gameStartTime = performance.now();
+ finalElapsedMs = 0;
+ recordSaved = false;
+
  backgroundMusic.play().catch(error=>{
   console.warn("Background music could not start:",error);
  });
- locked=false;
+ locked = false;
 
- $("startOverlay").style.display="none";
+ $("startOverlay").style.display = "none";
  $("gameCanvas").focus();
- $("robotStatus").textContent="🤖 حرکت کن!";
- $("deviceTitle").textContent=devices[0].name;
- $("deviceType").textContent="به حلقه سبز مرحله اول نزدیک شو.";
- $("distanceStatus").textContent="مرحله اول";
+ $("robotStatus").textContent = "🤖 حرکت کن!";
+ $("deviceTitle").textContent = devices[0].name;
+ $("deviceType").textContent = "به حلقه سبز مرحله اول نزدیک شو.";
+ $("distanceStatus").textContent = "مرحله اول";
 
  showMessage("بازی شروع شد! به حلقه سبز مرحله اول نزدیک شو.","info");
  updateUI();
 }
-
 function moveRobot(direction){
  if(!started||!robot||locked||waitingAnswer||gameWon)return;
 
@@ -1666,7 +1731,7 @@ function completeStage(){
     "good"
    );
   }
- },3000);
+ },2000);
 }
 
 function moveRobotAutomatically(delta){
@@ -1820,8 +1885,99 @@ function findDanceAnimation(){
   ||names[0];
 }
 
+function formatRecordTime(milliseconds){
+ const totalCentiseconds = Math.floor(milliseconds / 10);
+ const minutes = Math.floor(totalCentiseconds / 6000);
+ const seconds = Math.floor((totalCentiseconds % 6000) / 100);
+ const centiseconds = totalCentiseconds % 100;
+ return String(minutes).padStart(2,"0") + ":" +
+  String(seconds).padStart(2,"0") + "." +
+  String(centiseconds).padStart(2,"0");
+}
+
+async function saveAndShowLeaderboard(){
+ const statusElement = $("recordStatus");
+ const leaderboardBody = $("leaderboardBody");
+ if(recordSaved) return;
+ recordSaved = true;
+
+ if(!studentFullName || !finalElapsedMs){
+  if(statusElement) statusElement.textContent = "اطلاعات رکورد کامل نیست.";
+  return;
+ }
+
+ try{
+  const {data:savedRecord,error:insertError} = await supabaseClient
+   .from("alavi_robot_records")
+   .insert({student_name:studentFullName,elapsed_ms:finalElapsedMs,score:score})
+   .select("id, student_name, elapsed_ms, score, created_at")
+   .single();
+  if(insertError) throw insertError;
+
+  const {data:records,error:readError} = await supabaseClient
+   .from("alavi_robot_records")
+   .select("id, student_name, elapsed_ms, score, created_at")
+   .order("elapsed_ms",{ascending:true})
+   .order("created_at",{ascending:true})
+   .limit(50);
+  if(readError) throw readError;
+
+  if(leaderboardBody){
+   leaderboardBody.replaceChildren();
+   if(!records || records.length===0){
+    const row=document.createElement("tr");
+    const cell=document.createElement("td");
+    cell.colSpan=4;
+    cell.textContent="هنوز رکوردی ثبت نشده است.";
+    row.appendChild(cell);
+    leaderboardBody.appendChild(row);
+   }else{
+    records.forEach((record,index)=>{
+     const row=document.createElement("tr");
+     if(record.id===savedRecord.id) row.classList.add("current-record");
+     const rankCell=document.createElement("td");
+     rankCell.textContent=String(index+1);
+     const nameCell=document.createElement("td");
+     nameCell.textContent=record.student_name;
+     const timeCell=document.createElement("td");
+     timeCell.textContent=formatRecordTime(record.elapsed_ms);
+     const scoreCell=document.createElement("td");
+     scoreCell.textContent=String(record.score);
+     row.append(rankCell,nameCell,timeCell,scoreCell);
+     leaderboardBody.appendChild(row);
+    });
+   }
+  }
+
+  const {count:fasterCount,error:fasterError}=await supabaseClient
+   .from("alavi_robot_records").select("id",{count:"exact",head:true})
+   .lt("elapsed_ms",savedRecord.elapsed_ms);
+  if(fasterError) throw fasterError;
+
+  const {count:earlierTieCount,error:tieError}=await supabaseClient
+   .from("alavi_robot_records").select("id",{count:"exact",head:true})
+   .eq("elapsed_ms",savedRecord.elapsed_ms)
+   .lt("created_at",savedRecord.created_at);
+  if(tieError) throw tieError;
+
+  const rank=1+(fasterCount||0)+(earlierTieCount||0);
+  if(statusElement){
+   statusElement.textContent="دانش‌آموز: "+studentFullName+
+    " | زمان: "+formatRecordTime(finalElapsedMs)+" | رتبه: "+rank;
+  }
+ }catch(error){
+  console.error("Supabase record error:",error);
+  if(statusElement) statusElement.textContent=
+   "بازی تمام شد، اما ثبت رکورد انجام نشد. آدرس و کلید Supabase و اتصال اینترنت را بررسی کن.";
+  recordSaved=false;
+ }
+}
+
 function winGame(){
  if(gameWon)return;
+ if(gameStartTime>0 && !recordSaved){
+  finalElapsedMs=Math.max(1,Math.floor(performance.now()-gameStartTime));
+ }
 
  gameWon=true;
  finishing=false;
@@ -1837,7 +1993,20 @@ function winGame(){
  $("startOverlay").style.display="none";
  $("victoryOverlay").style.display="flex";
 
- $("finalScore").textContent="امتیاز نهایی: "+toFa(score);
+ $("finalScore").textContent =
+  "امتیاز نهایی: " + toFa(score) +
+  " | زمان: " + formatRecordTime(finalElapsedMs);
+ $("recordStatus").textContent = "در حال ذخیره رکورد و دریافت رتبه...";
+ const leaderboardBody = $("leaderboardBody");
+ leaderboardBody.replaceChildren();
+ const loadingRow = document.createElement("tr");
+ const loadingCell = document.createElement("td");
+ loadingCell.colSpan = 4;
+ loadingCell.textContent = "در حال دریافت رکوردها...";
+ loadingRow.appendChild(loadingCell);
+ leaderboardBody.appendChild(loadingRow);
+ saveAndShowLeaderboard();
+
  $("robotStatus").textContent="🏆 قهرمان بازی!";
  $("distanceStatus").textContent="🎉 خط پایان";
  $("deviceTitle").textContent="CHAMPION!";
@@ -1947,6 +2116,12 @@ function resetWorld(){
  currentIndex=0;
  score=0;
  started=false;
+ gameStartTime=0;
+ finalElapsedMs=0;
+ recordSaved=false;
+ studentFirstName="";
+ studentLastName="";
+ studentFullName="";
  waitingAnswer=false;
  locked=false;
  finishing=false;
