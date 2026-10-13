@@ -758,18 +758,18 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 const $ = id => document.getElementById(id);
 
 const devices = [
- {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board"],image:"keyboard.jpg"},
- {name:"Mouse",type:"Input",faType:"ورودی",aliases:["mouse"],image:"mouse.jpg"},
- {name:"Microphone",type:"Input",faType:"ورودی",aliases:["microphone","mic"],image:"microphone.jpg"},
- {name:"Monitor",type:"Output",faType:"خروجی",aliases:["monitor","screen"],image:"monitor.jpg"},
- {name:"Speaker",type:"Output",faType:"خروجی",aliases:["speaker","speakers"],image:"speaker.jpg"},
- {name:"Printer",type:"Output",faType:"خروجی",aliases:["printer"],image:"printer.jpg"},
- {name:"Webcam",type:"Input",faType:"ورودی",aliases:["webcam","web cam"],image:"webcam.jpg"},
- {name:"Headphones",type:"Output",faType:"خروجی",aliases:["headphones","headphone","headset"],image:"headphones.jpg"},
- {name:"Scanner",type:"Input",faType:"ورودی",aliases:["scanner"],image:"scanner.jpg"},
- {name:"Gamepad",type:"Input",faType:"ورودی",aliases:["gamepad","game pad","controller"],image:"gamepad.jpg"},
- {name:"Digital Camera",type:"Input",faType:"ورودی",aliases:["digital camera","camera"],image:"camera.jpg"},
- {name:"Projector",type:"Output",faType:"خروجی",aliases:["projector"],image:"projector.jpg"}
+ {name:"Keyboard",type:"Input",faType:"ورودی",aliases:["keyboard","key board","کیبورد","صفحه کلید"],image:"keyboard.jpg"},
+ {name:"Mouse",type:"Input",faType:"ورودی",aliases:["mouse","ماوس","موس"],image:"mouse.jpg"},
+ {name:"Microphone",type:"Input",faType:"ورودی",aliases:["microphone","mic","میکروفون","میکروفن"],image:"microphone.jpg"},
+ {name:"Monitor",type:"Output",faType:"خروجی",aliases:["monitor","screen","مانیتور","صفحه نمایش"],image:"monitor.jpg"},
+ {name:"Speaker",type:"Output",faType:"خروجی",aliases:["speaker","speakers","اسپیکر","بلندگو"],image:"speaker.jpg"},
+ {name:"Printer",type:"Output",faType:"خروجی",aliases:["printer","پرینتر","چاپگر"],image:"printer.jpg"},
+ {name:"Webcam",type:"Input",faType:"ورودی",aliases:["webcam","web cam","وبکم","دوربین وب"],image:"webcam.jpg"},
+ {name:"Headphones",type:"Output",faType:"خروجی",aliases:["headphones","headphone","headset","هدفون","هدست"],image:"headphones.jpg"},
+ {name:"Scanner",type:"Input",faType:"ورودی",aliases:["scanner","اسکنر"],image:"scanner.jpg"},
+ {name:"Gamepad",type:"Input",faType:"ورودی",aliases:["gamepad","game pad","controller","گیم پد","دسته بازی"],image:"gamepad.jpg"},
+ {name:"Digital Camera",type:"Input",faType:"ورودی",aliases:["digital camera","camera","دوربین دیجیتال","دوربین"],image:"camera.jpg"},
+ {name:"Projector",type:"Output",faType:"خروجی",aliases:["projector","پروژکتور"],image:"projector.jpg"}
 ];
 
 let currentIndex = 0;
@@ -798,6 +798,7 @@ let lastTime = 0;
 let fallStarted = 0;
 let roundCorrectName = false;
 let roundCorrectType = false;
+let collectedSpeech = "";
 
 const gameScene = new THREE.Scene();
 gameScene.background = new THREE.Color(0x09162b);
@@ -1267,17 +1268,18 @@ function activateDevice(index){
 
  $("deviceTitle").textContent=devices[index].name;
  $("deviceType").textContent=
-  `نوع دستگاه: ${devices[index].faType} — نام انگلیسی را بگو و نوع را فارسی مشخص کن`;
+  `نام دستگاه را بگو و مشخص کن ورودی است یا خروجی`;
 
  $("distanceStatus").textContent="⏱️ ۱۰ ثانیه فرصت";
  $("robotStatus").textContent="🤖 گوش می‌کنم";
+ collectedSpeech="";
  $("answerText").textContent=
-  `مثال: ${devices[index].name}، ${devices[index].faType}`;
+  `در ۱۰ ثانیه بگو: ${devices[index].name} و «${devices[index].faType}»`;
 
  setAnimation("Idle");
 
  showMessage(
-  `مرحله ${index+1}: نام دستگاه را انگلیسی و نوع آن را فارسی بگو؛ «ورودی» یا «خروجی».`,
+  `مرحله ${index+1}: تا ۱۰ ثانیه فرصت داری نام دستگاه و «ورودی» یا «خروجی» را بگویی. می‌توانی بین آن‌ها مکث کنی.`,
   "info"
  );
 
@@ -1302,7 +1304,7 @@ function activateDevice(index){
    clearAnswerTimer();
 
    if(waitingAnswer){
-    loseGame("زمان ۱۰ ثانیه‌ای تمام شد؛ نوع دستگاه در زمان مقرر پاسخ داده نشد.");
+    loseGame("۱۰ ثانیه تمام شد؛ باید در این زمان هم نام دستگاه و هم ورودی یا خروجی بودن آن گفته شود.");
    }
   }
  },200);
@@ -1316,7 +1318,7 @@ function startListening(){
 
  if(!SpeechRecognition){
   showMessage(
-   "تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود. Chrome را با HTTPS باز کن.",
+   "تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود. بازی را در Chrome و با HTTPS باز کن.",
    "bad"
   );
   $("micButton").disabled=false;
@@ -1328,114 +1330,153 @@ function startListening(){
  try{
   recognition=new SpeechRecognition();
   recognition.lang="fa-IR";
-  recognition.continuous=false;
-  recognition.interimResults=false;
+  recognition.continuous=true;
+  recognition.interimResults=true;
   recognition.maxAlternatives=3;
 
   isListening=true;
   $("micButton").classList.add("ready");
-  $("micButton").textContent="🎙️ نام دستگاه + ورودی/خروجی";
+  $("micButton").textContent="🎙️ در حال شنیدن پاسخ";
 
   showMessage(
-   "نام انگلیسی دستگاه را بگو و سپس «ورودی» یا «خروجی» را مشخص کن.",
+   "هر وقت آماده‌ای صحبت کن؛ می‌توانی نام دستگاه و ورودی/خروجی را با مکث بگویی.",
    "info"
   );
 
   recognition.onresult=event=>{
    if(!waitingAnswer)return;
 
-   const result=event.results[0][0];
-   const transcript=result.transcript.trim();
+   let interimText="";
+   for(let i=event.resultIndex;i<event.results.length;i++){
+    const result=event.results[i];
+    const textPart=result[0].transcript.trim();
+    if(result.isFinal&&textPart){
+     collectedSpeech+=" "+textPart;
+    }else if(textPart){
+     interimText+=" "+textPart;
+    }
+   }
 
-   $("answerText").textContent="پاسخ شنیده‌شده: "+transcript;
-   isListening=false;
+   const allSpoken=normalizeText(collectedSpeech+" "+interimText);
+   $("answerText").textContent="پاسخ شنیده‌شده: "+(collectedSpeech+" "+interimText).trim();
 
-   const spoken=normalizeText(transcript);
-   const saysInput=spoken.includes("ورودی");
-   const saysOutput=spoken.includes("خروجی");
    const device=devices[currentIndex];
-
+   const saysInput=allSpoken.includes("ورودی");
+   const saysOutput=allSpoken.includes("خروجی");
    const correctType=device.type==="Input"
     ?saysInput&&!saysOutput
     :saysOutput&&!saysInput;
+   const finalSpoken=normalizeText(collectedSpeech);
+   const finalSaysInput=finalSpoken.includes("ورودی");
+   const finalSaysOutput=finalSpoken.includes("خروجی");
+   const wrongType=device.type==="Input"
+    ?finalSaysOutput&&!finalSaysInput
+    :finalSaysInput&&!finalSaysOutput;
+   const correctName=containsDeviceName(allSpoken,device.aliases);
 
-   if(!saysInput&&!saysOutput){
-    $("micButton").disabled=false;
-    $("micButton").textContent="🎙️ دوباره پاسخ بده";
+   roundCorrectName=correctName;
+   roundCorrectType=correctType;
 
-    showMessage(
-     "نوع دستگاه شنیده نشد. دوباره نام دستگاه را بگو و در پایان «ورودی» یا «خروجی» را واضح بیان کن.",
-     "bad"
-    );
+   if(correctName&&correctType){
+    $("answerText").textContent=
+     `آفرین! نام دستگاه و نوع آن درست تشخیص داده شد: ${device.name}، ${device.faType}`;
+    completeStage();
     return;
    }
 
-   if(!correctType){
-    loseGame(
-     `نوع دستگاه اشتباه بود. پاسخ صحیح: ${device.name}، ${device.faType}`
-    );
+   if(correctName&&wrongType){
+    loseGame(`نام دستگاه درست بود، اما نوع آن اشتباه بود. پاسخ صحیح: ${device.name}، ${device.faType}`);
     return;
    }
 
-   roundCorrectName=true;
-   roundCorrectType=true;
-
-   $("answerText").textContent=
-    `پاسخ تو: ${transcript} — نوع صحیح: ${device.faType}`;
-
-   completeStage();
+   if(correctName&&!saysInput&&!saysOutput){
+    showMessage("نام دستگاه شنیده شد. حالا هر وقت آماده‌ای بگو «ورودی» یا «خروجی»؛ هنوز فرصت داری.","info");
+   }else if((saysInput||saysOutput)&&!correctName){
+    showMessage("نوع دستگاه شنیده شد. حالا نام دستگاه را هم بگو؛ هنوز فرصت داری.","info");
+   }else{
+    showMessage("گوش می‌کنم؛ نام دستگاه و نوع آن را هر کدام در هر زمانی از ۱۰ ثانیه بگو.","info");
+   }
   };
 
   recognition.onerror=event=>{
    isListening=false;
-
    if(!waitingAnswer)return;
 
-   $("micButton").disabled=false;
-   $("micButton").classList.add("ready");
-   $("micButton").textContent="🔁 دوباره بگو";
-
    if(event.error==="not-allowed"){
-    showMessage(
-     "اجازه استفاده از میکروفون را در تنظیمات مرورگر فعال کن.",
-     "bad"
-    );
-   }else if(event.error==="no-speech"){
-    showMessage(
-     "صدایی دریافت نشد؛ دکمه میکروفون را بزن و دوباره صحبت کن.",
-     "bad"
-    );
-   }else if(event.error!=="aborted"){
-    showMessage(
-     "تشخیص صدا ناموفق بود؛ دوباره تلاش کن.",
-     "bad"
-    );
+    $("micButton").disabled=false;
+    $("micButton").textContent="🔁 اجازه میکروفون را بررسی کن";
+    showMessage("اجازه استفاده از میکروفون را در تنظیمات مرورگر فعال کن.","bad");
+   }else if(event.error!=="aborted"&&event.error!=="no-speech"){
+    showMessage("شنیدن صدا موقتاً متوقف شد؛ تلاش می‌کنم دوباره گوش بدهم.","info");
    }
   };
 
   recognition.onend=()=>{
    isListening=false;
-
-   if(waitingAnswer&&!gameWon){
+   if(waitingAnswer&&!gameWon&&Date.now()<answerDeadline){
+    setTimeout(()=>{
+     if(waitingAnswer&&!isListening&&Date.now()<answerDeadline){
+      startListening();
+     }
+    },250);
+   }else if(waitingAnswer&&!gameWon){
     $("micButton").disabled=false;
     $("micButton").classList.add("ready");
-    $("micButton").textContent="🎙️ دوباره بگو";
+    $("micButton").textContent="🎙️ پاسخ صوتی";
    }
   };
 
   recognition.start();
-
  }catch(error){
   isListening=false;
   $("micButton").disabled=false;
   $("micButton").classList.add("ready");
   $("micButton").textContent="🔁 شروع دوباره شنود";
-
-  showMessage(
-   "میکروفون شروع نشد. اجازه میکروفون را بررسی کن و دوباره امتحان کن.",
-   "bad"
-  );
+  showMessage("میکروفون شروع نشد. اجازه میکروفون را بررسی کن و دوباره امتحان کن.","bad");
  }
+}
+
+function containsDeviceName(spoken,aliases){
+ const text=normalizeText(spoken);
+ for(const aliasValue of aliases){
+  const alias=normalizeText(aliasValue);
+  if(!alias)continue;
+  if(text.includes(alias))return true;
+  const words=alias.split(" ").filter(Boolean);
+  if(words.length===1){
+   for(const word of text.split(" ")){
+    if(similarity(word,alias)>=0.70)return true;
+   }
+  }else{
+   const spokenWords=text.split(" ").filter(Boolean);
+   for(let i=0;i<=spokenWords.length-words.length;i++){
+    const phrase=spokenWords.slice(i,i+words.length).join(" ");
+    if(similarity(phrase,alias)>=0.70)return true;
+   }
+  }
+ }
+ return false;
+}
+
+function similarity(a,b){
+ if(a===b)return 1;
+ if(!a||!b)return 0;
+ const previous=Array.from({length:b.length+1},(_,i)=>i);
+ for(let i=1;i<=a.length;i++){
+  let diagonal=previous[0];
+  previous[0]=i;
+  for(let j=1;j<=b.length;j++){
+   const old=previous[j];
+   previous[j]=Math.min(
+    previous[j]+1,
+    previous[j-1]+1,
+    diagonal+(a[i-1]===b[j-1]?0:1)
+   );
+   diagonal=old;
+  }
+ }
+ const distance=previous[b.length];
+ return 1-distance/Math.max(a.length,b.length);
 }
 
 const backgroundMusic=new Audio("sounds/background.mp3");
