@@ -1028,8 +1028,16 @@ video {
    group.add(label);
    return group;
   }
-  
-  function placeDevices(){
+  function shuffleDevices() {
+  for (let i = devices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [devices[i], devices[j]] = [devices[j], devices[i]];
+  }
+}
+function placeDevices(){
+   deviceObjects.forEach(group => gameScene.remove(group));
+   deviceObjects = [];
+
    devices.forEach((device,index)=>{
     const side=index%2===0?-1:1;
     const group=new THREE.Group();
@@ -1230,8 +1238,20 @@ video {
    }
   
    studentFullName=`${studentFirstName} ${studentLastName}`.replace(/\s+/g," ").trim();
-   if(registrationMessage)registrationMessage.textContent="";
-   started=true;
+
+if(registrationMessage)registrationMessage.textContent="";
+
+// تصادفی‌سازی ترتیب دستگاه‌ها در هر شروع بازی
+shuffleDevices();
+placeDevices();
+buildList();
+
+currentIndex = 0;
+score = 0;
+answered.clear();
+
+if(registrationMessage)registrationMessage.textContent="";
+started=true;
    gameStartTime=performance.now();
    finalElapsedMs=0;
    recordSaved=false;
