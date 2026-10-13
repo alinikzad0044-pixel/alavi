@@ -2002,12 +2002,16 @@ async function saveAndShowLeaderboard(){
    statusElement.textContent="دانش‌آموز: "+studentFullName+
     " | زمان: "+formatRecordTime(finalElapsedMs)+" | رتبه: "+rank;
   }
- }catch(error){
-  console.error("Supabase record error:",error);
-  if(statusElement) statusElement.textContent=
-   "بازی تمام شد، اما ثبت رکورد انجام نشد. آدرس و کلید Supabase و اتصال اینترنت را بررسی کن.";
-  recordSaved=false;
- }
+}catch(error){
+  console.error("Supabase record error:", error);
+
+  if(statusElement){
+    statusElement.textContent =
+      "خطای ثبت رکورد: " + (error.message || String(error));
+  }
+
+  recordSaved = false;
+}
 }
 
 function winGame(){
