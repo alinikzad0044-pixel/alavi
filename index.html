@@ -807,7 +807,17 @@ video {
         <div class="leaderboard-wrap">
           <h3>🏆 جدول رکوردهای دانش‌آموزان</h3>
           <table id="leaderboardTable">
-            <thead><tr><th>رتبه</th><th>عکس</th><th>نام دانش‌آموز</th><th>تاریخ و ساعت</th><th>رکورد بازی</th><th>امتیاز</th></tr></thead>
+            <thead>
+              <tr>
+                <th>رتبه</th>
+                <th>عکس</th>
+                <th>نام دانش‌آموز</th>
+                <th>تاریخ و ساعت</th>
+                <th>زمان بازی</th>
+                <th>امتیاز</th>
+                <th>نتیجه</th>
+              </tr>
+            </thead>
             <tbody id="leaderboardBody"><tr><td colspan="4">در حال دریافت رکوردها...</td></tr></tbody>
           </table>
         </div>
@@ -865,6 +875,7 @@ video {
           <th>تاریخ و ساعت</th>
           <th>زمان بازی</th>
           <th>امتیاز</th>
+          <th>نتیجه</th>
         </tr>
       </thead>
       <tbody id="mainLeaderboardBody">
@@ -1508,6 +1519,12 @@ video {
    $("emotion").style.display="block";
    $("robotStatus").textContent="🤖 شما باختی!";
    $("distanceStatus").textContent="بازی تمام شد";
+   finalElapsedMs = Math.max(
+  1,
+  Math.floor(performance.now() - gameStartTime)
+);
+
+saveAndShowLeaderboard("بازنده");
    $("deviceTitle").textContent="GAME OVER";
    $("deviceType").textContent="پاسخ صحیح نبود!";
    $("answerText").textContent=reason;
@@ -1739,190 +1756,191 @@ function formatRecordTime(milliseconds){
   String(centiseconds).padStart(2,"0");
 }
 
-async function saveAndShowLeaderboard(){
- const statusElement=$("recordStatus");
- const leaderboardBody=$("leaderboardBody");
+async function loadLeaderboard(currentRecordId = null) {
+  const mainBody = $("mainLeaderboardBody");
+  const victoryBody = $("leaderboardBody");
+  const mainStatus = $("mainLeaderboardStatus");
+  const statusElement = $("recordStatus");
 
- if(recordSaved)return;
+  try {
+    const { data: records, error } = await supabaseClient
+      .from("alavi_robot_records")
+      .select("id,student_name,elapsed_ms,score,created_at,photo_data,game_status")
+      .order("elapsed_ms", { ascending: true })
+      .limit(500);
 
- if(!studentFullName||!finalElapsedMs||!studentPhotoData){
-  if(statusElement){
-   statusElement.textContent="نام دانش‌آموز، عکس یا زمان بازی کامل نیست.";
-  }
-  return;
- }
+    if (error) throw error;
 
- recordSaved=true;
+    const bodies = [mainBody, victoryBody];
 
- try{
-  // خواندن رکوردهای قبلی
-  const {data:oldRecords,error:oldReadError}=await supabaseClient
-   .from("alavi_robot_records")
-   .select("id,student_name,elapsed_ms,score,created_at,photo_data");
+    bodies.forEach(body => {
+      if (!body) return;
 
-  if(oldReadError)throw oldReadError;
+      body.replaceChildren();
 
-  // یافتن رکوردهای قبلی با نام کامل یکسان
-  const studentKey=normalizeStudentName(studentFullName);
+      if (!records || records.length === 0) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 7;
+        cell.textContent = "هنوز رکوردی ثبت نشده است.";
+        row.appendChild(cell);
+        body.appendChild(row);
+        return;
+      }
 
-  const previousRecords=(oldRecords||[]).filter(record=>
-   normalizeStudentName(record.student_name)===studentKey
-  );
+      records.forEach((record, index) => {
+        const row = document.createElement("tr");
 
-  // ابتدا رکورد جدید را ذخیره می‌کنیم
-  const {data:savedRecord,error:insertError} = await supabaseClient
-  .from("alavi_robot_records")
-  .upsert(
-    {
-      student_name: studentFullName,
-      elapsed_ms: finalElapsedMs,
-      score: score,
-      photo_data: studentPhotoData,
-      created_at: new Date().toISOString()
-    },
-    {
-      onConflict: "student_name"
-    }
-  )
-  .select("id, student_name, elapsed_ms, score, created_at, photo_data")
-  .single();
+        if (currentRecordId && record.id === currentRecordId) {
+          row.classList.add("current-record");
+        }
 
-if(insertError) throw insertError; 
+        const rankCell = document.createElement("td");
+        rankCell.textContent = toFa(index + 1);
 
-  // حذف رکوردهای قبلی همین دانش‌آموز
-  const oldIds=previousRecords
-   .map(record=>record.id)
-   .filter(id=>id!==savedRecord.id);
+        const photoCell = document.createElement("td");
 
-  if(oldIds.length){
-   const {error:deleteError}=await supabaseClient
-    .from("alavi_robot_records")
-    .delete()
-    .in("id",oldIds);
+        if (record.photo_data) {
+          const photo = document.createElement("img");
+          photo.className = "record-photo";
+          photo.src = record.photo_data;
+          photo.alt = "عکس " + record.student_name;
+          photo.loading = "lazy";
+          photoCell.appendChild(photo);
+        } else {
+          photoCell.textContent = "—";
+        }
 
-   if(deleteError){
-    console.error("Old record cleanup error:",deleteError);
-    if(statusElement){
-     statusElement.textContent=
-      "رکورد جدید ثبت شد؛ اما حذف رکوردهای قبلی انجام نشد. مجوز DELETE جدول را بررسی کن.";
-    }
-   }
-  }
+        const nameCell = document.createElement("td");
+        nameCell.textContent = record.student_name || "—";
 
-  // خواندن جدول پس از ثبت رکورد جدید
-  const {data:records,error:readError}=await supabaseClient
-   .from("alavi_robot_records")
-   .select("id,student_name,elapsed_ms,score,created_at,photo_data")
-   .order("elapsed_ms",{ascending:true})
-   .order("created_at",{ascending:true})
-   .limit(500);
+        const dateCell = document.createElement("td");
+        const dateValue = new Date(record.created_at);
+        dateCell.textContent =
+          dateValue.toLocaleDateString("fa-IR") + " " +
+          dateValue.toLocaleTimeString("fa-IR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+          });
 
-  if(readError)throw readError;
+        const timeCell = document.createElement("td");
+        timeCell.textContent = formatRecordTime(record.elapsed_ms || 0);
 
-  if(leaderboardBody){
-   leaderboardBody.replaceChildren();
+        const scoreCell = document.createElement("td");
+        scoreCell.textContent = toFa(record.score || 0);
 
-   if(!records||records.length===0){
-    const row=document.createElement("tr");
-    const cell=document.createElement("td");
-    cell.colSpan=6;
-    cell.textContent="هنوز رکوردی ثبت نشده است.";
-    row.appendChild(cell);
-    leaderboardBody.appendChild(row);
-   }else{
-    records.forEach((record,index)=>{
-     const row=document.createElement("tr");
+        const resultCell = document.createElement("td");
+        resultCell.textContent = record.game_status || "برنده";
+        resultCell.style.color =
+          resultCell.textContent === "برنده" ? "#8affce" : "#ffadbc";
 
-     if(record.id===savedRecord.id){
-      row.classList.add("current-record");
-     }
+        row.append(
+          rankCell,
+          photoCell,
+          nameCell,
+          dateCell,
+          timeCell,
+          scoreCell,
+          resultCell
+        );
 
-     const rankCell=document.createElement("td");
-     rankCell.textContent=toFa(index+1);
-
-     const photoCell=document.createElement("td");
-
-     if(record.photo_data){
-      const photo=document.createElement("img");
-      photo.className="record-photo";
-      photo.src=record.photo_data;
-      photo.alt="عکس "+record.student_name;
-      photo.loading="lazy";
-      photoCell.appendChild(photo);
-     }else{
-      photoCell.textContent="—";
-     }
-
-     const nameCell=document.createElement("td");
-     nameCell.textContent=record.student_name;
-
-     const dateCell=document.createElement("td");
-     dateCell.className="record-date";
-
-     const dateValue=new Date(record.created_at);
-     dateCell.textContent=
-      dateValue.toLocaleDateString("fa-IR")+" "+
-      dateValue.toLocaleTimeString("fa-IR",{
-       hour:"2-digit",
-       minute:"2-digit",
-       second:"2-digit"
+        body.appendChild(row);
       });
-
-     const timeCell=document.createElement("td");
-     timeCell.textContent=formatRecordTime(record.elapsed_ms);
-
-     const scoreCell=document.createElement("td");
-     scoreCell.textContent=toFa(record.score);
-
-     row.append(
-      rankCell,
-      photoCell,
-      nameCell,
-      dateCell,
-      timeCell,
-      scoreCell
-     );
-
-     leaderboardBody.appendChild(row);
     });
-   }
+
+    if (mainStatus) {
+      mainStatus.textContent =
+        "تعداد رکوردهای ثبت‌شده: " + toFa(records.length);
+    }
+
+    if (statusElement && !currentRecordId) {
+      statusElement.textContent =
+        "تعداد رکوردهای ثبت‌شده: " + toFa(records.length);
+    }
+
+  } catch (error) {
+    console.error("Leaderboard loading error:", error);
+
+    if (mainStatus) {
+      mainStatus.textContent = "خطا در دریافت جدول: " + error.message;
+    }
+
+    if (statusElement) {
+      statusElement.textContent = "خطا در دریافت جدول: " + error.message;
+    }
   }
-
-  // محاسبه رتبه بر اساس زمان
-  const {count:fasterCount,error:fasterError}=await supabaseClient
-   .from("alavi_robot_records")
-   .select("id",{count:"exact",head:true})
-   .lt("elapsed_ms",savedRecord.elapsed_ms);
-
-  if(fasterError)throw fasterError;
-
-  const {count:earlierTieCount,error:tieError}=await supabaseClient
-   .from("alavi_robot_records")
-   .select("id",{count:"exact",head:true})
-   .eq("elapsed_ms",savedRecord.elapsed_ms)
-   .lt("created_at",savedRecord.created_at);
-
-  if(tieError)throw tieError;
-
-  const rank=1+(fasterCount||0)+(earlierTieCount||0);
-
-  if(statusElement){
-   statusElement.textContent=
-    "دانش‌آموز: "+studentFullName+
-    " | زمان: "+formatRecordTime(finalElapsedMs)+
-    " | رتبه: "+toFa(rank);
-  }
-
- }catch(error){
-  console.error("Supabase record error:",error);
-
-  if(statusElement){
-   statusElement.textContent="خطای ثبت رکورد: "+(error.message||String(error));
-  }
-
-  recordSaved=false;
- }
 }
+
+async function saveAndShowLeaderboard(gameStatus = "برنده") {
+  const statusElement = $("recordStatus");
+  const mainStatus = $("mainLeaderboardStatus");
+
+  if (recordSaved) return;
+
+  if (!studentFullName || !studentPhotoData || gameStartTime <= 0) {
+    const message = "نام دانش‌آموز، عکس یا زمان شروع بازی موجود نیست.";
+
+    if (statusElement) statusElement.textContent = message;
+    if (mainStatus) mainStatus.textContent = message;
+
+    return;
+  }
+
+  if (!finalElapsedMs || finalElapsedMs <= 0) {
+    finalElapsedMs = Math.max(
+      1,
+      Math.floor(performance.now() - gameStartTime)
+    );
+  }
+
+  recordSaved = true;
+
+  if (statusElement) statusElement.textContent = "در حال ثبت نتیجه بازی...";
+  if (mainStatus) mainStatus.textContent = "در حال ثبت نتیجه بازی...";
+
+  try {
+    const { data: savedRecord, error } = await supabaseClient
+      .from("alavi_robot_records")
+      .upsert(
+        {
+          student_name: studentFullName.trim(),
+          elapsed_ms: finalElapsedMs,
+          score: score,
+          photo_data: studentPhotoData,
+          game_status: gameStatus,
+          created_at: new Date().toISOString()
+        },
+        { onConflict: "student_name" }
+      )
+      .select("id,student_name,elapsed_ms,score,created_at,photo_data,game_status")
+      .single();
+
+    if (error) throw error;
+
+    await loadLeaderboard(savedRecord.id);
+
+    const message =
+      "نتیجه ثبت شد: " + gameStatus +
+      " | دانش‌آموز: " + studentFullName +
+      " | زمان: " + formatRecordTime(finalElapsedMs) +
+      " | امتیاز: " + toFa(score);
+
+    if (statusElement) statusElement.textContent = message;
+    if (mainStatus) mainStatus.textContent = message;
+
+  } catch (error) {
+    console.error("Supabase record error:", error);
+
+    const message = "خطای ثبت رکورد: " + (error.message || String(error));
+
+    if (statusElement) statusElement.textContent = message;
+    if (mainStatus) mainStatus.textContent = message;
+
+    recordSaved = false;
+  }
+}
+
 
 /* =========================================
    پایان بازی و ذخیره رکورد
@@ -1985,7 +2003,7 @@ function winGame(){
  const dance=findDanceAnimation();
  if(dance)setAnimation(dance);
 
- saveAndShowLeaderboard();
+ saveAndShowLeaderboard("برنده");
 }
 
 function goToNextDevice(){
@@ -2370,6 +2388,7 @@ loader.load(
 
 buildList();
 updateUI();
+loadLeaderboard();
 requestAnimationFrame(animate);
 
 // توقف شنود هنگام خروج از صفحه
